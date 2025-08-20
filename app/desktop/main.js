@@ -73,7 +73,11 @@ app.on('before-quit', () => {
 function createWindow() {
   win = new BrowserWindow({ width: 1200, height: 800 });
   // Load your packaged index.html
-  win.loadFile(path.join(process.resourcesPath, 'frontend', 'index.html'));
+  // When packaged, the frontend is bundled under process.resourcesPath/resources/frontend
+  // so ensure we point to the correct location.
+  win.loadFile(
+    path.join(process.resourcesPath, 'resources', 'frontend', 'index.html')
+  );
 }
 
 app.whenReady().then(() => {
