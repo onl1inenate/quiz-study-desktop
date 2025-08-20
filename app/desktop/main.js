@@ -20,7 +20,7 @@ app.on('second-instance', () => {
 function startBackend() {
   if (backend) return; // guard
 
-  const serverPath = path.join(process.resourcesPath, 'backend', 'server.js');
+  const serverPath = path.join(process.resourcesPath, 'resources', 'backend', 'server.js');
   // Where we’ll log the backend output
   const logDir = path.join(app.getPath('logs'), 'quiz-study-desktop');
   const logFile = path.join(logDir, 'backend.log');
