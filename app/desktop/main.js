@@ -78,7 +78,7 @@ app.on('before-quit', () => {
 
 function createWindow() {
   const indexPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'frontend', 'dist', 'index.html')
+    ? path.join(process.resourcesPath, 'resources', 'frontend', 'index.html')
     : path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
 
   if (!fs.existsSync(indexPath)) {
