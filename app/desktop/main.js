@@ -34,7 +34,10 @@ function startBackend() {
     ...process.env,
     NODE_ENV: 'production',
     PORT: process.env.PORT || '3001',
-    DB_PATH: process.env.DB_PATH || path.join(dbDir, 'data.sqlite'),
+    // Ensure the backend gets a writable SQLite path.
+    // The backend expects `DATABASE_FILE`; support legacy `DB_PATH` if present.
+    DATABASE_FILE:
+      process.env.DATABASE_FILE || process.env.DB_PATH || path.join(dbDir, 'data.sqlite'),
     // IMPORTANT: this flag tells Electron to act as Node, not launch another app
     ELECTRON_RUN_AS_NODE: '1',
   };
