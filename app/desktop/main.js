@@ -78,7 +78,7 @@ app.on('before-quit', () => {
 
 function createWindow() {
   win = new BrowserWindow({ width: 1200, height: 800 });
-  const indexPath = app.isPackaged
+const indexPath = app.isPackaged
     ? path.join(process.resourcesPath, 'frontend', 'dist', 'index.html')
     : path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
   win.loadFile(indexPath);
