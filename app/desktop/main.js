@@ -6,6 +6,7 @@ const fs = require('fs');
 
 let backend = null;
 let win = null;
+let quitting = false;
 
 // 1) Make sure only one app instance runs
 const single = app.requestSingleInstanceLock();
@@ -20,7 +21,9 @@ app.on('second-instance', () => {
 function startBackend() {
   if (backend) return; // guard
 
-  const serverPath = path.join(process.resourcesPath, 'resources', 'backend', 'server.js');
+  const serverPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'resources', 'backend', 'server.js')
+    : path.join(__dirname, '..', 'backend', 'dist', 'server.js');
   // Where we’ll log the backend output
   const logDir = path.join(app.getPath('logs'), 'quiz-study-desktop');
   const logFile = path.join(logDir, 'backend.log');
@@ -52,7 +55,9 @@ function startBackend() {
   backend.stderr.on('data', d => out.write(d));
   backend.on('exit', (code, signal) => {
     out.write(`\n[backend-exit] code=${code} signal=${signal}\n`);
+    out.end();
     backend = null;
+    if (quitting) return;
     dialog.showErrorBox(
       'Backend exited',
       `The backend exited with code ${code ?? 'null'}.\n\nLog:\n${logFile}`
@@ -65,6 +70,7 @@ function startBackend() {
 
 // Clean up child on quit
 app.on('before-quit', () => {
+  quitting = true;
   if (backend) {
     try { backend.kill(); } catch {}
   }
@@ -72,8 +78,10 @@ app.on('before-quit', () => {
 
 function createWindow() {
   win = new BrowserWindow({ width: 1200, height: 800 });
-  // Load your packaged index.html
-  win.loadFile(path.join(process.resourcesPath, 'frontend', 'index.html'));
+  const indexPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'frontend', 'dist', 'index.html')
+    : path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
+  win.loadFile(indexPath);
 }
 
 app.whenReady().then(() => {
