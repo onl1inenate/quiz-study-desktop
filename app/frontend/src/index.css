@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* utilities reused across the app */
+.btn { @apply px-4 py-2 rounded bg-blue-600 text-white; }
+.btn:hover { @apply bg-blue-700; }
+.btn:disabled { @apply bg-gray-400; }
+
+.card { @apply bg-white rounded shadow p-4; }
+.input { @apply border rounded p-2 w-full; }
+.select { @apply border rounded p-2; }
+.label { @apply text-sm font-medium text-slate-600; }
+.badge { @apply inline-block px-2 py-0.5 rounded text-xs bg-slate-100; }

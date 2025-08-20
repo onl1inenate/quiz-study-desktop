@@ -1,0 +1,34 @@
+
+# OS / editor
+.DS_Store
+*.log
+
+# Node modules
+node_modules/
+
+# Builds / bundles / packaged app
+dist/
+frontend/dist/
+backend/dist/
+desktop/dist/
+desktop/release/
+resources/
+*.dmg
+*.app
+
+# Local data & env
+.env
+backend/.env
+desktop/resources/backend/.env
+*.sqlite
+*.sqlite-journal
+
+# Local DB
+app/backend/data.sqlite*
+# Secrets
+app/backend/.env
+
+# Env files (do not commit)
+.env
+app/.env
+app/backend/.env
