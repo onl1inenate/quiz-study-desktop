@@ -1,6 +1,6 @@
 // app/desktop/main.js
 const { app, BrowserWindow, dialog } = require('electron');
-const { spawn } = require('child_process');
+const { fork } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -40,9 +40,9 @@ function startBackend() {
   };
 
   const out = fs.createWriteStream(logFile, { flags: 'a' });
-  backend = spawn(process.execPath, [serverPath], {
+  backend = fork(serverPath, [], {
     env,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     windowsHide: true,
   });
   backend.stdout.on('data', d => out.write(d));
