@@ -77,10 +77,20 @@ app.on('before-quit', () => {
 });
 
 function createWindow() {
-  win = new BrowserWindow({ width: 1200, height: 800 });
-const indexPath = app.isPackaged
+  const indexPath = app.isPackaged
     ? path.join(process.resourcesPath, 'frontend', 'dist', 'index.html')
     : path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
+
+  if (!fs.existsSync(indexPath)) {
+    dialog.showErrorBox(
+      'Missing frontend build',
+      `Could not find \n${indexPath}\n\n` +
+        'Run `npm run build` in the frontend/ directory before starting the app.'
+    );
+    return;
+  }
+
+  win = new BrowserWindow({ width: 1200, height: 800 });
   win.loadFile(indexPath);
 }
 
