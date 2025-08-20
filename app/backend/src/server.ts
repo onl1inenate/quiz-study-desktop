@@ -13,10 +13,8 @@ const app = express();
  * CORS for dev (http://localhost:5173) and packaged Electron (file:// => no Origin header).
  * We keep it permissive for a desktop app, and answer preflight so fetch() succeeds.
  */
-// You can keep this simple allow-all:
-app.use(cors({ origin: (_origin, cb) => cb(null, true) }));
-
-// …and ensure preflight gets explicit headers for stricter UAs:
+// Allow all origins (including file:// with no Origin header) and respond to preflight
+app.use(cors());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
