@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { listDecks, startSession, DeckMeta } from '../lib/api';
+import { listFolders, startSession, DeckMeta, FolderMeta } from '../lib/api';
 import QuizRunner from '../components/QuizRunner';
 
 type Mode = 'Mixed' | 'Weak' | 'Due';
@@ -18,10 +18,11 @@ export default function Study() {
   useEffect(() => {
     (async () => {
       try {
-        const ds = await listDecks();
+        const fs = await listFolders();
+        const ds = fs.flatMap((f: FolderMeta) => f.decks);
         setDecks(ds);
         const preselect = sp.get('deck');
-        if (preselect && ds.find(d => d.id === preselect)) {
+        if (preselect && ds.find((d) => d.id === preselect)) {
           setDeckId(preselect);
         } else if (!deckId && ds[0]) {
           setDeckId(ds[0].id);

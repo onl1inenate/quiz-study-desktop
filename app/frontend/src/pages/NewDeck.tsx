@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { createDeck } from '../lib/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function NewDeck() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
+  const folderId = params.get('folder') || undefined;
   const [name, setName] = useState('');
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,7 +17,7 @@ export default function NewDeck() {
     }
     setLoading(true);
     try {
-      const out = await createDeck(name.trim(), text.trim());
+      const out = await createDeck(name.trim(), text.trim(), folderId);
       alert('Deck created!');
       nav(`/edit/${out.deckId}`); // jump into editor for further tweaks if desired
     } catch (e: any) {

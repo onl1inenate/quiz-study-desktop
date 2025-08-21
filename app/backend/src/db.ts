@@ -23,18 +23,31 @@ function hasColumn(table: string, col: string) {
 }
 
 export function migrate() {
+  // Folders to group decks
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS Folders (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      createdAt INTEGER DEFAULT (strftime('%s','now') * 1000)
+    );
+  `);
+
   // Decks
   db.exec(`
     CREATE TABLE IF NOT EXISTS Decks (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       source_text TEXT DEFAULT '',
+      folderId TEXT,
       createdAt INTEGER DEFAULT (strftime('%s','now') * 1000)
     );
   `);
-  // Add source_text to old Decks if missing
+  // Add missing columns to old Decks
   if (!hasColumn('Decks', 'source_text')) {
     db.exec(`ALTER TABLE Decks ADD COLUMN source_text TEXT DEFAULT ''`);
+  }
+  if (!hasColumn('Decks', 'folderId')) {
+    db.exec(`ALTER TABLE Decks ADD COLUMN folderId TEXT`);
   }
 
   // Questions

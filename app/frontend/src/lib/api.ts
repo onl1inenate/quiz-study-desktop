@@ -8,21 +8,53 @@ export type DeckMeta = {
   unmastered: number;
 };
 
-export async function createDeck(name: string, text: string) {
+export type FolderMeta = {
+  id: string;
+  name: string;
+  decks: DeckMeta[];
+};
+
+export async function createDeck(name: string, text: string, folderId?: string) {
   const r = await fetch(`${BASE}/decks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, text }),
+    body: JSON.stringify({ name, text, folderId }),
   });
   if (!r.ok) throw new Error(await r.text().catch(()=>'Failed to create deck'));
   return r.json() as Promise<{ deckId: string; countsByType: any }>;
 }
 
-export async function listDecks() {
-  const r = await fetch(`${BASE}/decks`);
-  if (!r.ok) throw new Error('Failed to list decks');
+export async function listFolders() {
+  const r = await fetch(`${BASE}/folders`);
+  if (!r.ok) throw new Error('Failed to list folders');
   const j = await r.json();
-  return j.decks as DeckMeta[];
+  return j.folders as FolderMeta[];
+}
+
+export async function createFolder(name: string) {
+  const r = await fetch(`${BASE}/folders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!r.ok) throw new Error(await r.text().catch(()=>'Failed to create folder'));
+  return r.json() as Promise<{ id: string }>;
+}
+
+export async function updateFolder(folderId: string, data: { name: string }) {
+  const r = await fetch(`${BASE}/folders/${folderId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) throw new Error(await r.text().catch(()=>'Failed to update folder'));
+  return r.json();
+}
+
+export async function deleteFolder(folderId: string) {
+  const r = await fetch(`${BASE}/folders/${folderId}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error(await r.text().catch(()=>'Failed to delete folder'));
+  return r.json();
 }
 
 export type QuizQuestion = {
@@ -66,6 +98,7 @@ export type DeckDetail = {
   id: string;
   name: string;
   text: string; // notes
+  folderId: string | null;
   totalQuestions: number;
   mastered: number;
   unmastered: number;
@@ -77,7 +110,10 @@ export async function getDeckDetail(deckId: string) {
   return r.json() as Promise<DeckDetail>;
 }
 
-export async function updateDeck(deckId: string, data: { name?: string; text?: string; regenerate?: boolean; batchSize?: number }) {
+export async function updateDeck(
+  deckId: string,
+  data: { name?: string; text?: string; folderId?: string | null; regenerate?: boolean; batchSize?: number }
+) {
   const r = await fetch(`${BASE}/decks/${deckId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
