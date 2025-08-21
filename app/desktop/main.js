@@ -50,6 +50,7 @@ function startBackend() {
     env,
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     windowsHide: true,
+    cwd: path.dirname(serverPath),
   });
   backend.stdout.on('data', d => out.write(d));
   backend.stderr.on('data', d => out.write(d));
