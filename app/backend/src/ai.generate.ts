@@ -118,11 +118,12 @@ async function callStructuredJSON(prompt: string) {
         c.responses.create({
           model: ENV.OPENAI_MODEL,
           input: prompt,
-          text: {
-            format: {
-              type: 'json_schema',
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
               name: JSON_SCHEMA_NAME,
-              schema: jsonSchemaForAI.schema
+              schema: jsonSchemaForAI.schema,
+              strict: true
             }
           }
         } as any),
@@ -141,7 +142,14 @@ async function callStructuredJSON(prompt: string) {
         c.chat.completions.create({
           model: ENV.OPENAI_MODEL,
           messages: [{ role: 'user', content: prompt }],
-          response_format: { type: 'json_schema', json_schema: jsonSchemaForAI } as any
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: JSON_SCHEMA_NAME,
+              schema: jsonSchemaForAI.schema,
+              strict: true
+            }
+          }
         } as any),
         'chat.completions.create'
       );
@@ -151,31 +159,14 @@ async function callStructuredJSON(prompt: string) {
     }
   }
 
-  // --- 3) Very old legacy text completions ---
-  if (c?.completions?.create) {
-    try {
-      const r3 = await withTimeout<any>(
-        c.completions.create({
-          model: ENV.OPENAI_MODEL,
-          prompt,
-          temperature: 0
-        }),
-        'completions.create'
-      );
-      return String(r3?.choices?.[0]?.text ?? '');
-    } catch (err) {
-      lastError = err;
-    }
+  if (!c?.responses?.create && !c?.chat?.completions?.create) {
+    throw new Error(
+      'OpenAI SDK has neither responses.create nor chat.completions.create. ' +
+      'Update the SDK: cd app/backend && npm i openai@latest'
+    );
   }
 
-  if (c?.responses?.create || c?.chat?.completions?.create || c?.completions?.create) {
-    throw new Error('OpenAI call failed: ' + (lastError as any)?.message);
-  }
-
-  throw new Error(
-    'OpenAI SDK has neither responses.create nor chat.completions.create. ' +
-    'Update the SDK: cd app/backend && npm i openai@latest'
-  );
+  throw new Error('OpenAI call failed: ' + (lastError as any)?.message);
 }
 
 export async function generateAIBatch(
