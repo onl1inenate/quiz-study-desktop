@@ -109,10 +109,11 @@ function extractOutputText(resp: any): string {
 /** Prefer Responses (text.format), then Chat Completions, then legacy Completions. */
 async function callStructuredJSON(prompt: string) {
   const c = client as any;
+  let lastError: unknown = null;
 
   // --- 1) New Responses API ---
-  try {
-    if (c?.responses?.create) {
+  if (c?.responses?.create) {
+    try {
       const r = await withTimeout<any>(
         c.responses.create({
           model: ENV.OPENAI_MODEL,
@@ -128,14 +129,14 @@ async function callStructuredJSON(prompt: string) {
         'responses.create'
       );
       return extractOutputText(r);
+    } catch (err) {
+      lastError = err;
     }
-  } catch {
-    // fall through
   }
 
   // --- 2) Chat Completions (widely available) ---
-  try {
-    if (c?.chat?.completions?.create) {
+  if (c?.chat?.completions?.create) {
+    try {
       const r2 = await withTimeout<any>(
         c.chat.completions.create({
           model: ENV.OPENAI_MODEL,
@@ -145,14 +146,14 @@ async function callStructuredJSON(prompt: string) {
         'chat.completions.create'
       );
       return String(r2?.choices?.[0]?.message?.content ?? '');
+    } catch (err) {
+      lastError = err;
     }
-  } catch {
-    // fall through
   }
 
   // --- 3) Very old legacy text completions ---
-  try {
-    if (c?.completions?.create) {
+  if (c?.completions?.create) {
+    try {
       const r3 = await withTimeout<any>(
         c.completions.create({
           model: ENV.OPENAI_MODEL,
@@ -162,9 +163,13 @@ async function callStructuredJSON(prompt: string) {
         'completions.create'
       );
       return String(r3?.choices?.[0]?.text ?? '');
+    } catch (err) {
+      lastError = err;
     }
-  } catch {
-    // fall through
+  }
+
+  if (c?.responses?.create || c?.chat?.completions?.create || c?.completions?.create) {
+    throw new Error('OpenAI call failed: ' + (lastError as any)?.message);
   }
 
   throw new Error(

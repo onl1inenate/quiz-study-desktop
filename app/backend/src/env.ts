@@ -3,7 +3,7 @@ import 'dotenv/config';
 export const ENV = {
   PORT: parseInt(process.env.PORT || '3001', 10),
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-  OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-5-mini', // default → mini
+  OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-5-mini',
   DATABASE_FILE: process.env.DATABASE_FILE || './data.sqlite',
   USE_OPENAI_GRADING: (process.env.USE_OPENAI_GRADING || 'true').toLowerCase() === 'true',
   OPENAI_TIMEOUT_MS: parseInt(process.env.OPENAI_TIMEOUT_MS || '120000', 10),
