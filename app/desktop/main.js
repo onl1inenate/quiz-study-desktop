@@ -19,7 +19,7 @@ app.on('second-instance', () => {
 });
 
 function startBackend() {
-  if (backend) return; // guard
+  if (backend) return Promise.resolve(); // guard
 
   const serverPath = app.isPackaged
     ? path.join(process.resourcesPath, 'resources', 'backend', 'server.js')
@@ -53,19 +53,23 @@ function startBackend() {
   });
   backend.stdout.on('data', d => out.write(d));
   backend.stderr.on('data', d => out.write(d));
-  backend.on('exit', (code, signal) => {
-    out.write(`\n[backend-exit] code=${code} signal=${signal}\n`);
-    out.end();
-    backend = null;
-    if (quitting) return;
-    dialog.showErrorBox(
-      'Backend exited',
-      `The backend exited with code ${code ?? 'null'}.\n\nLog:\n${logFile}`
-    );
-  });
 
-  // Optional: give it a moment before the UI starts fetching
-  // so the first requests don’t hit a 404.
+  return new Promise((resolve) => {
+    backend.on('message', msg => {
+      if (msg === 'ready') resolve();
+    });
+    backend.on('exit', (code, signal) => {
+      out.write(`\n[backend-exit] code=${code} signal=${signal}\n`);
+      out.end();
+      backend = null;
+      if (quitting) return;
+      dialog.showErrorBox(
+        'Backend exited',
+        `The backend exited with code ${code ?? 'null'}.\n\nLog:\n${logFile}`
+      );
+      resolve();
+    });
+  });
 }
 
 // Clean up child on quit
@@ -94,8 +98,8 @@ function createWindow() {
   win.loadFile(indexPath);
 }
 
-app.whenReady().then(() => {
-  startBackend();
+app.whenReady().then(async () => {
+  await startBackend();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
