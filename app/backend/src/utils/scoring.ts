@@ -1,7 +1,11 @@
 import OpenAI from 'openai';
 import { ENV } from '../env.js';
 
-const client = new OpenAI({ apiKey: ENV.OPENAI_API_KEY });
+const REQUEST_TIMEOUT = (ENV as any).OPENAI_TIMEOUT_MS ?? 600_000;
+const client = new OpenAI({
+  apiKey: ENV.OPENAI_API_KEY,
+  timeout: REQUEST_TIMEOUT
+});
 
 function normalize(s: string) {
   return s.trim().toLowerCase().replace(/\s+/g, ' ');

@@ -2,7 +2,12 @@ import OpenAI from 'openai';
 import { ENV } from './env.js';
 import { AIGeneratedQuestionArray, AIGeneratedQuestion } from './schemas.js';
 
-const client = new OpenAI({ apiKey: ENV.OPENAI_API_KEY });
+const REQUEST_TIMEOUT = (ENV as any).OPENAI_TIMEOUT_MS ?? 600_000;
+const MAX_RETRIES = (ENV as any).OPENAI_MAX_RETRIES ?? 2;
+const client = new OpenAI({
+  apiKey: ENV.OPENAI_API_KEY,
+  timeout: REQUEST_TIMEOUT
+});
 
 const JSON_SCHEMA_NAME = 'question_set';
 
@@ -79,14 +84,22 @@ ${sourceText}
 `;
 }
 
-function withTimeout<T = any>(p: Promise<T>, label: string): Promise<T> {
-  const ms = (ENV as any).OPENAI_TIMEOUT_MS ?? 120_000;
-  return Promise.race<T>([
-    p,
-    new Promise<never>((_, rej) =>
-      setTimeout(() => rej(new Error(`Timeout: ${label} after ${ms}ms`)), ms)
-    )
-  ]);
+async function withTimeout<T = any>(
+  fn: (signal: AbortSignal) => Promise<T>,
+  label: string
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+  try {
+    return await fn(controller.signal);
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`Timeout: ${label} after ${REQUEST_TIMEOUT}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Extract text from Responses API result without relying on SDK typings. */
@@ -109,61 +122,74 @@ function extractOutputText(resp: any): string {
 /** Prefer Responses (text.format), then Chat Completions, then legacy Completions. */
 async function callStructuredJSON(prompt: string) {
   const c = client as any;
-  let lastError: unknown = null;
-
-  // --- 1) New Responses API ---
-  if (c?.responses?.create) {
-    try {
-      const r = await withTimeout<any>(
-        c.responses.create({
-          model: ENV.OPENAI_MODEL,
-          input: prompt,
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: JSON_SCHEMA_NAME,
-              schema: jsonSchemaForAI.schema,
-              strict: true
-            }
-          }
-        } as any),
-        'responses.create'
-      );
-      return extractOutputText(r);
-    } catch (err) {
-      lastError = err;
-    }
-  }
-
-  // --- 2) Chat Completions (widely available) ---
-  if (c?.chat?.completions?.create) {
-    try {
-      const r2 = await withTimeout<any>(
-        c.chat.completions.create({
-          model: ENV.OPENAI_MODEL,
-          messages: [{ role: 'user', content: prompt }],
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: JSON_SCHEMA_NAME,
-              schema: jsonSchemaForAI.schema,
-              strict: true
-            }
-          }
-        } as any),
-        'chat.completions.create'
-      );
-      return String(r2?.choices?.[0]?.message?.content ?? '');
-    } catch (err) {
-      lastError = err;
-    }
-  }
-
   if (!c?.responses?.create && !c?.chat?.completions?.create) {
     throw new Error(
       'OpenAI SDK has neither responses.create nor chat.completions.create. ' +
       'Update the SDK: cd app/backend && npm i openai@latest'
     );
+  }
+
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    // --- 1) New Responses API ---
+    if (c?.responses?.create) {
+      try {
+        const r = await withTimeout<any>(
+          (signal) =>
+            c.responses.create(
+              {
+                model: ENV.OPENAI_MODEL,
+                input: prompt,
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: JSON_SCHEMA_NAME,
+                    schema: jsonSchemaForAI.schema,
+                    strict: true
+                  }
+                }
+              } as any,
+              { signal }
+            ),
+          'responses.create'
+        );
+        return extractOutputText(r);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    // --- 2) Chat Completions (widely available) ---
+    if (c?.chat?.completions?.create) {
+      try {
+        const r2 = await withTimeout<any>(
+          (signal) =>
+            c.chat.completions.create(
+              {
+                model: ENV.OPENAI_MODEL,
+                messages: [{ role: 'user', content: prompt }],
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: JSON_SCHEMA_NAME,
+                    schema: jsonSchemaForAI.schema,
+                    strict: true
+                  }
+                }
+              } as any,
+              { signal }
+            ),
+          'chat.completions.create'
+        );
+        return String(r2?.choices?.[0]?.message?.content ?? '');
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (attempt < MAX_RETRIES) {
+      await new Promise((res) => setTimeout(res, 500 * (attempt + 1)));
+    }
   }
 
   throw new Error('OpenAI call failed: ' + (lastError as any)?.message);
@@ -210,7 +236,7 @@ export async function generateQuestionsFlexible(
   opts: { minTotal?: number; timeBudgetMs?: number; maxTotal?: number } = {}
 ): Promise<AIGeneratedQuestion[]> {
   const minTotal = opts.minTotal ?? 0;
-  const timeBudgetMs = opts.timeBudgetMs ?? ((ENV as any).GEN_TIME_BUDGET_MS ?? 180_000);
+  const timeBudgetMs = opts.timeBudgetMs ?? ((ENV as any).GEN_TIME_BUDGET_MS ?? 600_000);
   const maxTotal = opts.maxTotal ?? ((ENV as any).GEN_MAX_TOTAL ?? 1_000);
   const batchSize = ((ENV as any).GEN_BATCH_SIZE ?? 25);
 
