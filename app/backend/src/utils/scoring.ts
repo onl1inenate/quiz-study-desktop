@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { ENV } from '../env.js';
 
-const REQUEST_TIMEOUT = (ENV as any).OPENAI_TIMEOUT_MS ?? 600_000;
+const REQUEST_TIMEOUT = (ENV as any).OPENAI_TIMEOUT_MS ?? 1_800_000;
 const client = new OpenAI({
   apiKey: ENV.OPENAI_API_KEY,
   timeout: REQUEST_TIMEOUT

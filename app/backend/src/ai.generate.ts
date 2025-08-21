@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import { ENV } from './env.js';
 import { AIGeneratedQuestionArray, AIGeneratedQuestion } from './schemas.js';
 
-const REQUEST_TIMEOUT = (ENV as any).OPENAI_TIMEOUT_MS ?? 600_000;
+const REQUEST_TIMEOUT = (ENV as any).OPENAI_TIMEOUT_MS ?? 1_800_000;
 const MAX_RETRIES = (ENV as any).OPENAI_MAX_RETRIES ?? 2;
 const client = new OpenAI({
   apiKey: ENV.OPENAI_API_KEY,
@@ -236,7 +236,7 @@ export async function generateQuestionsFlexible(
   opts: { minTotal?: number; timeBudgetMs?: number; maxTotal?: number } = {}
 ): Promise<AIGeneratedQuestion[]> {
   const minTotal = opts.minTotal ?? 0;
-  const timeBudgetMs = opts.timeBudgetMs ?? ((ENV as any).GEN_TIME_BUDGET_MS ?? 600_000);
+  const timeBudgetMs = opts.timeBudgetMs ?? ((ENV as any).GEN_TIME_BUDGET_MS ?? 1_800_000);
   const maxTotal = opts.maxTotal ?? ((ENV as any).GEN_MAX_TOTAL ?? 1_000);
   const batchSize = ((ENV as any).GEN_BATCH_SIZE ?? 25);
 
