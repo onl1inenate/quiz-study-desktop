@@ -6,6 +6,7 @@ import { ENV } from './env.js';
 import { decksRouter } from './routes/decks.js';
 import { quizRouter } from './routes/quiz.js';
 import { questionsRouter } from './routes/questions.js';
+import { foldersRouter } from './routes/folders.js';
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.get('/health', (_req: Request, res: Response) => {
 app.use('/decks', decksRouter);
 app.use('/quiz', quizRouter);
 app.use('/questions', questionsRouter);
+app.use('/folders', foldersRouter);
 
 /** Typed error handler */
 app.use(
