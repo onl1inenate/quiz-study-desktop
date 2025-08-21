@@ -53,4 +53,12 @@ app.use(
 /** Start */
 app.listen(ENV.PORT, () => {
   console.log(`Backend running on http://localhost:${ENV.PORT}`);
+  // Notify parent process (Electron) that the server is ready.
+  if (process.send) {
+    try {
+      process.send('ready');
+    } catch {
+      // no-op if messaging channel is unavailable
+    }
+  }
 });
