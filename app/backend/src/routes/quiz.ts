@@ -1,13 +1,58 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db.js';
+import OpenAI from 'openai';
 
 export const quizRouter = Router();
+
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+
+const SYNONYMS: Record<string, string[]> = {
+  usa: ['united states', 'united states of america', 'america'],
+  nyc: ['new york', 'new york city'],
+};
+
+function normalizeSynonyms(text: string) {
+  const t = (text || '').trim().toLowerCase();
+  for (const [canon, list] of Object.entries(SYNONYMS)) {
+    if (t === canon || list.includes(t)) return canon;
+  }
+  return t;
+}
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function similarity(a: string, b: string) {
+  const dist = levenshtein(a, b);
+  return 1 - dist / Math.max(a.length, b.length, 1);
+}
 
 const SessionReq = z.object({
   deckId: z.string().min(1),
   count: z.number().int().min(1).default(10),
   mode: z.enum(['Mixed', 'Weak', 'Due']).default('Mixed'),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  ratios: z.object({
+    mcq: z.number().min(0).max(1).optional(),
+    cloze: z.number().min(0).max(1).optional(),
+    short: z.number().min(0).max(1).optional(),
+  }).optional(),
 });
 
 // Fisher–Yates
@@ -36,7 +81,7 @@ function isNumericType(t: string) {
 quizRouter.post('/session', (req, res) => {
   const parsed = SessionReq.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  const { deckId, count: requested, mode } = parsed.data;
+  const { deckId, count: requested, mode, difficulty, ratios } = parsed.data;
 
   const rows = db.prepare(`
       SELECT q.id, q.deckId, q.type, q.prompt, q.options, q.correct_answer, q.explanation, q.tags, q.difficulty,
@@ -49,7 +94,7 @@ quizRouter.post('/session', (req, res) => {
 
   const tagAttempts = new Map<string, number>();
   for (const r of rows) {
-    const tags = String(r.tags || '')
+  const tags = String(r.tags || '')
       .split(',')
       .map((t: string) => t.trim())
       .filter(Boolean);
@@ -75,15 +120,55 @@ quizRouter.post('/session', (req, res) => {
   if (mode === 'Weak' || mode === 'Due') pool = rows.filter(r => Number(r.correctCount || 0) < 2);
   if (!pool.length) return res.json({ questions: [] });
 
-  const count = Math.max(1, Math.min(requested, pool.length));
-  const mcq = sortByLeastQuizzed(pool.filter(r => r.type === 'MCQ'));
-  const cloze = sortByLeastQuizzed(pool.filter(r => r.type === 'CLOZE'));
-  const short = sortByLeastQuizzed(pool.filter(r => r.type === 'SHORT'));
+  const buckets = {
+    easy: shuffle(pool.filter(r => Number(r.difficulty || 3) <= 2)),
+    medium: shuffle(pool.filter(r => Number(r.difficulty || 3) === 3)),
+    hard: shuffle(pool.filter(r => Number(r.difficulty || 3) >= 4)),
+  } as const;
+
+  let selectedPool: any[];
+  if (difficulty) {
+    selectedPool = buckets[difficulty];
+  } else {
+    const wantEasy = Math.floor(requested / 3);
+    const wantMed = Math.floor(requested / 3);
+    const wantHard = requested - wantEasy - wantMed;
+    selectedPool = [
+      ...buckets.easy.slice(0, wantEasy),
+      ...buckets.medium.slice(0, wantMed),
+      ...buckets.hard.slice(0, wantHard),
+    ];
+    if (selectedPool.length < requested) {
+      const leftovers = shuffle([
+        ...buckets.easy.slice(wantEasy),
+        ...buckets.medium.slice(wantMed),
+        ...buckets.hard.slice(wantHard),
+      ]);
+      selectedPool = [
+        ...selectedPool,
+        ...leftovers.slice(0, requested - selectedPool.length),
+      ];
+    }
+  }
+
+  if (!selectedPool.length) return res.json({ questions: [] });
+
+  const count = Math.max(1, Math.min(requested, selectedPool.length));
+  const mcq   = sortByLeastQuizzed(selectedPool.filter(r => r.type === 'MCQ'));
+  const cloze = sortByLeastQuizzed(selectedPool.filter(r => r.type === 'CLOZE'));
+  const short = sortByLeastQuizzed(selectedPool.filter(r => r.type === 'SHORT'));
+
   const take = <T,>(arr: T[], n: number) => arr.slice(0, Math.max(0, Math.min(n, arr.length)));
 
-  let wantMCQ = Math.floor(count * 0.5);
-  let wantCloze = Math.floor(count * 0.25);
-  let wantShort = count - wantMCQ - wantCloze;
+  const ratioMCQ = ratios?.mcq ?? 0.5;
+  const ratioCloze = ratios?.cloze ?? 0.25;
+  const ratioShort = ratios?.short ?? 0.25;
+  const ratioSum = ratioMCQ + ratioCloze + ratioShort || 1;
+  let wantMCQ = Math.floor(count * (ratioMCQ / ratioSum));
+  let wantCloze = Math.floor(count * (ratioCloze / ratioSum));
+  let wantShort = Math.floor(count * (ratioShort / ratioSum));
+  const allocated = wantMCQ + wantCloze + wantShort;
+  if (allocated < count) wantShort += count - allocated;
 
   let selected: any[] = [
     ...take(mcq, wantMCQ),
@@ -93,9 +178,11 @@ quizRouter.post('/session', (req, res) => {
 
   if (selected.length < count) {
     const chosen = new Set(selected.map(q => q.id));
-    const leftovers = shuffle(pool.filter(q => !chosen.has(q.id)));
+    const leftovers = shuffle(selectedPool.filter(q => !chosen.has(q.id)));
     selected = [...selected, ...leftovers.slice(0, count - selected.length)];
   }
+
+  selected = shuffle(selected);
 
   const out = selected.slice(0, count).map(r => ({
     id: r.id,
@@ -108,7 +195,7 @@ quizRouter.post('/session', (req, res) => {
   res.json({ questions: out });
 });
 
-quizRouter.post('/submit', (req, res) => {
+quizRouter.post('/submit', async (req, res) => {
   const body = z.object({
     questionId: z.string().min(1),
     userAnswer: z.string().optional().default(''),
@@ -127,14 +214,41 @@ quizRouter.post('/submit', (req, res) => {
     if (!row) return res.status(404).json({ error: 'Question not found' });
 
     const correctAnswer = String(row.correct_answer ?? '');
-    const isCorrect =
-      (userAnswer ?? '').trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+    let isCorrect = (userAnswer ?? '').trim().toLowerCase() === correctAnswer.trim().toLowerCase();
 
-    const newCount = isCorrect ? Number(row.correctCount || 0) + 1 : 0;
+    if (row.type === 'SHORT') {
+      const normUser = normalizeSynonyms(userAnswer ?? '');
+      const normCorrect = normalizeSynonyms(correctAnswer);
+      if (!isCorrect) {
+        const sim = similarity(normUser, normCorrect);
+        if (sim >= 0.85) isCorrect = true;
+      }
+      if (!isCorrect && openai) {
+        try {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'You are a grading assistant. Reply with JSON {"correct":boolean,"feedback":string}.' },
+              { role: 'user', content: `Question: ${row.prompt}\nCorrect Answer: ${correctAnswer}\nStudent Answer: ${userAnswer}` }
+            ],
+            response_format: { type: 'json_object' },
+          });
+          const msg = completion.choices?.[0]?.message?.content || '{}';
+          const judgement = JSON.parse(msg);
+          if (judgement.correct === true) isCorrect = true;
+          if (typeof judgement.feedback === 'string') row.feedback = judgement.feedback;
+        } catch (e) {
+          console.error('OpenAI grading error', e);
+        }
+      }
+    }
+
+    // Track a streak of consecutive correct answers. Any wrong attempt resets it.
+    const newStreak = isCorrect ? Number(row.correctCount || 0) + 1 : 0;
     db.prepare(`
       INSERT INTO Mastery (questionId, correctCount) VALUES (?, ?)
       ON CONFLICT(questionId) DO UPDATE SET correctCount=excluded.correctCount
-    `).run(questionId, newCount);
+    `).run(questionId, newStreak);
 
     // Build INSERT for Attempts dynamically, coercing values per column type.
     const cols = pragmaColumns('Attempts');
@@ -157,7 +271,7 @@ quizRouter.post('/submit', (req, res) => {
     if (has('deckId')) {
       const t = colMap.get('deckId')!.type;
       payload.deckId = isTextType(t) || t === '' ? String(row.deckId ?? '') : Number(row.deckId ?? 0);
-    }
+       }
     if (has('userAnswer')) {
       const t = colMap.get('userAnswer')!.type;
       payload.userAnswer = isTextType(t) || t === '' ? String(userAnswer ?? '') : Number(userAnswer ?? 0);
@@ -185,7 +299,7 @@ quizRouter.post('/submit', (req, res) => {
     const names = Object.keys(payload);
     if (names.length >= 1) {
       const placeholders = names.map(() => '?').join(',');
-      const values = names.map(n => payload[n]);
+      the values = names.map(n => payload[n]);
       const sql = `INSERT INTO Attempts (${names.join(',')}) VALUES (${placeholders})`;
       db.prepare(sql).run(...values);
     }
@@ -194,8 +308,8 @@ quizRouter.post('/submit', (req, res) => {
       isCorrect,
       correct_answer: correctAnswer,
       explanation: String(row.explanation ?? ''),
-      correctCount: newCount,
-      mastered: newCount >= 2,
+      correctCount: newStreak,
+      mastered: newStreak >= 2,
     });
   } catch (err: any) {
     console.error('/quiz/submit error:', err?.message || err);
