@@ -30,7 +30,7 @@ export default function QuizRunner({ questions, onExit }: Props) {
   // Maintain a mutable queue so questions can be re-enqueued or removed.
   const [queue, setQueue] = useState<QuizQuestion[]>(() => [...questions]);
   const [phase, setPhase] = useState<'answer' | 'review' | 'done'>('answer');
-  the [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [graded, setGraded] = useState<Graded[]>([]);
   // Track consecutive correct streak per question id.
   const [streaks, setStreaks] = useState<Record<string, number>>({});
@@ -90,6 +90,16 @@ export default function QuizRunner({ questions, onExit }: Props) {
     const last = graded[graded.length - 1];
     const rest = queue.slice(1);
     let newQueue = rest;
+
+    // Re-enqueue incorrectly answered questions in a harder form
+    if (last && !last.isCorrect) {
+      newQueue = [...newQueue, transformQuestion(current)];
+    }
+
+    setQueue(newQueue);
+    setAsked(a => a + 1);
+    setPhase(newQueue.length === 0 ? 'done' : 'answer');
+  }
 
   const correctCount = graded.filter(g => g.isCorrect).length;
 
