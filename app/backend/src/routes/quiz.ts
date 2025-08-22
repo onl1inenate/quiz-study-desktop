@@ -8,6 +8,12 @@ const SessionReq = z.object({
   deckId: z.string().min(1),
   count: z.number().int().min(1).default(10),
   mode: z.enum(['Mixed', 'Weak', 'Due']).default('Mixed'),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+const SessionReq = z.object({
+  deckId: z.string().min(1),
+  count: z.number().int().min(1).default(10),
+  mode: z.enum(['Mixed', 'Weak', 'Due']).default('Mixed'),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   ratios: z.object({
     mcq: z.number().min(0).max(1).optional(),
     cloze: z.number().min(0).max(1).optional(),
@@ -41,7 +47,8 @@ function isNumericType(t: string) {
 quizRouter.post('/session', (req, res) => {
   const parsed = SessionReq.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  const { deckId, count: requested, mode, ratios } = parsed.data;
+const { deckId, count: requested, mode, difficulty, ratios } = parsed.data;
+
 
   const rows = db.prepare(`
       SELECT q.id, q.deckId, q.type, q.prompt, q.options, q.correct_answer, q.explanation, q.tags, q.difficulty,
@@ -55,10 +62,44 @@ quizRouter.post('/session', (req, res) => {
   if (mode === 'Weak' || mode === 'Due') pool = rows.filter(r => Number(r.correctCount || 0) < 2);
   if (!pool.length) return res.json({ questions: [] });
 
-  const count = Math.max(1, Math.min(requested, pool.length));
-  const mcq = shuffle(pool.filter(r => r.type === 'MCQ'));
-  const cloze = shuffle(pool.filter(r => r.type === 'CLOZE'));
-  const short = shuffle(pool.filter(r => r.type === 'SHORT'));
+  const buckets = {
+    easy: shuffle(pool.filter(r => Number(r.difficulty || 3) <= 2)),
+    medium: shuffle(pool.filter(r => Number(r.difficulty || 3) === 3)),
+    hard: shuffle(pool.filter(r => Number(r.difficulty || 3) >= 4)),
+  } as const;
+
+  let selectedPool: any[];
+  if (difficulty) {
+    selectedPool = buckets[difficulty];
+  } else {
+    const wantEasy = Math.floor(requested / 3);
+    const wantMed = Math.floor(requested / 3);
+    const wantHard = requested - wantEasy - wantMed;
+    selectedPool = [
+      ...buckets.easy.slice(0, wantEasy),
+      ...buckets.medium.slice(0, wantMed),
+      ...buckets.hard.slice(0, wantHard),
+    ];
+    if (selectedPool.length < requested) {
+      const leftovers = shuffle([
+        ...buckets.easy.slice(wantEasy),
+        ...buckets.medium.slice(wantMed),
+        ...buckets.hard.slice(wantHard),
+      ]);
+      selectedPool = [
+        ...selectedPool,
+        ...leftovers.slice(0, requested - selectedPool.length),
+      ];
+    }
+  }
+
+  if (!selectedPool.length) return res.json({ questions: [] });
+
+  const count = Math.max(1, Math.min(requested, selectedPool.length));
+  const poolForTypes = selectedPool;
+  const mcq = shuffle(poolForTypes.filter(r => r.type === 'MCQ'));
+  const cloze = shuffle(poolForTypes.filter(r => r.type === 'CLOZE'));
+  const short = shuffle(poolForTypes.filter(r => r.type === 'SHORT'));
   const take = <T,>(arr: T[], n: number) => arr.slice(0, Math.max(0, Math.min(n, arr.length)));
 
   const ratioMCQ = ratios?.mcq ?? 0.5;
@@ -79,7 +120,7 @@ quizRouter.post('/session', (req, res) => {
 
   if (selected.length < count) {
     const chosen = new Set(selected.map(q => q.id));
-    const leftovers = shuffle(pool.filter(q => !chosen.has(q.id)));
+    const leftovers = shuffle(poolForTypes.filter(q => !chosen.has(q.id)));
     selected = [...selected, ...leftovers.slice(0, count - selected.length)];
   }
 
