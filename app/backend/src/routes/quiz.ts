@@ -8,6 +8,11 @@ const SessionReq = z.object({
   deckId: z.string().min(1),
   count: z.number().int().min(1).default(10),
   mode: z.enum(['Mixed', 'Weak', 'Due']).default('Mixed'),
+  ratios: z.object({
+    mcq: z.number().min(0).max(1).optional(),
+    cloze: z.number().min(0).max(1).optional(),
+    short: z.number().min(0).max(1).optional(),
+  }).optional(),
 });
 
 // Fisher–Yates
@@ -36,7 +41,7 @@ function isNumericType(t: string) {
 quizRouter.post('/session', (req, res) => {
   const parsed = SessionReq.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  const { deckId, count: requested, mode } = parsed.data;
+  const { deckId, count: requested, mode, ratios } = parsed.data;
 
   const rows = db.prepare(`
       SELECT q.id, q.deckId, q.type, q.prompt, q.options, q.correct_answer, q.explanation, q.tags, q.difficulty,
@@ -56,9 +61,15 @@ quizRouter.post('/session', (req, res) => {
   const short = shuffle(pool.filter(r => r.type === 'SHORT'));
   const take = <T,>(arr: T[], n: number) => arr.slice(0, Math.max(0, Math.min(n, arr.length)));
 
-  let wantMCQ = Math.floor(count * 0.5);
-  let wantCloze = Math.floor(count * 0.25);
-  let wantShort = count - wantMCQ - wantCloze;
+  const ratioMCQ = ratios?.mcq ?? 0.5;
+  const ratioCloze = ratios?.cloze ?? 0.25;
+  const ratioShort = ratios?.short ?? 0.25;
+  const ratioSum = ratioMCQ + ratioCloze + ratioShort || 1;
+  let wantMCQ = Math.floor(count * (ratioMCQ / ratioSum));
+  let wantCloze = Math.floor(count * (ratioCloze / ratioSum));
+  let wantShort = Math.floor(count * (ratioShort / ratioSum));
+  const allocated = wantMCQ + wantCloze + wantShort;
+  if (allocated < count) wantShort += count - allocated;
 
   let selected: any[] = [
     ...take(mcq, wantMCQ),
@@ -72,58 +83,66 @@ quizRouter.post('/session', (req, res) => {
     selected = [...selected, ...leftovers.slice(0, count - selected.length)];
   }
 
-  const letters = ['a','b','c','d'] as const;
-  const correctLabels: string[] = [];
 
-  const out = selected.slice(0, count).map(r => {
-    const parsed = (() => {
-      try { return JSON.parse(r.options || '{}'); }
-      catch { return { a:'', b:'', c:'', d:'' }; }
-    })();
+  selected = shuffle(selected);
 
-    if (r.type === 'MCQ') {
-      const entries = letters.map(l => [l, parsed[l] || ''] as [string, string]);
-      let shuffled: Record<typeof letters[number], string> = { a:'', b:'', c:'', d:'' };
-      let map: Record<typeof letters[number], string> = { a:'', b:'', c:'', d:'' };
-      let correctLabel = 'a';
-      let attempts = 0;
-      do {
-        const shuffledEntries = shuffle(entries.slice());
-        shuffled = { a:'', b:'', c:'', d:'' } as any;
-        map = { a:'', b:'', c:'', d:'' } as any;
-        shuffledEntries.forEach(([orig, text], idx) => {
-          const newLabel = letters[idx];
-          shuffled[newLabel] = text;
-          map[newLabel] = orig;
-        });
-        correctLabel = letters.find(l => map[l] === r.correct_answer) || 'a';
-        attempts++;
-      } while (
-        attempts < 10 &&
-        correctLabels.length >= 2 &&
-        correctLabels[correctLabels.length - 1] === correctLabel &&
-        correctLabels[correctLabels.length - 2] === correctLabel
-      );
-      correctLabels.push(correctLabel);
+  const out = selected.slice(0, count).map(r => ({
+    id: r.id,
+    deckId: r.deckId,
+    type: r.type as 'MCQ' | 'CLOZE' | 'SHORT',
+    prompt: r.prompt,
+    options: (() => { try { return JSON.parse(r.options || '{}'); } catch { return { a:'', b:'', c:'', d:'' }; } })(),
+  }));
+const SessionReq = z.object({
+  deckId: z.string().min(1),
+  count: z.number().int().min(1).default(10),
+  mode: z.enum(['Mixed', 'Weak', 'Due']).default('Mixed'),
+  ratios: z.object({
+    mcq: z.number().min(0).max(1).optional(),
+    cloze: z.number().min(0).max(1).optional(),
+    short: z.number().min(0).max(1).optional(),
+  }).optional(),
+});
 
-      return {
-        id: r.id,
-        deckId: r.deckId,
-        type: 'MCQ' as const,
-        prompt: r.prompt,
-        options: shuffled,
-        answerMap: map,
-      };
-    }
+…
 
-    return {
-      id: r.id,
-      deckId: r.deckId,
-      type: r.type as 'CLOZE' | 'SHORT',
-      prompt: r.prompt,
-      options: parsed,
-    };
-  });
+const { deckId, count: requested, mode, ratios } = parsed.data;
+
+…
+
+const mcq = shuffle(pool.filter(r => r.type === 'MCQ'));
+const cloze = shuffle(pool.filter(r => r.type === 'CLOZE'));
+const short = shuffle(pool.filter(r => r.type === 'SHORT'));
+const take = <T,>(arr: T[], n: number) =>
+  arr.slice(0, Math.max(0, Math.min(n, arr.length)));
+
+const ratioMCQ = ratios?.mcq ?? 0.5;
+const ratioCloze = ratios?.cloze ?? 0.25;
+const ratioShort = ratios?.short ?? 0.25;
+const ratioSum = ratioMCQ + ratioCloze + ratioShort || 1;
+let wantMCQ = Math.floor(count * (ratioMCQ / ratioSum));
+let wantCloze = Math.floor(count * (ratioCloze / ratioSum));
+let wantShort = Math.floor(count * (ratioShort / ratioSum));
+const allocated = wantMCQ + wantCloze + wantShort;
+if (allocated < count) wantShort += count - allocated;
+
+let selected: any[] = [
+  ...take(mcq, wantMCQ),
+  ...take(cloze, wantCloze),
+  ...take(short, wantShort),
+];
+
+if (selected.length < count) {
+  const chosen = new Set(selected.map(q => q.id));
+  const leftovers = shuffle(pool.filter(q => !chosen.has(q.id)));
+  selected = [
+    ...selected,
+    ...leftovers.slice(0, count - selected.length),
+  ];
+}
+
+selected = shuffle(selected);
+
 
   res.json({ questions: out });
 });
