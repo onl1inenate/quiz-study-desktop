@@ -25,12 +25,16 @@ type Graded = {
 };
 
 export default function QuizRunner({ questions, onExit }: Props) {
-  const [idx, setIdx] = useState(0);
+  // Maintain a mutable queue so questions can be re-enqueued or removed.
+  const [queue, setQueue] = useState<QuizQuestion[]>(() => [...questions]);
   const [phase, setPhase] = useState<'answer' | 'review' | 'done'>('answer');
   const [loading, setLoading] = useState(false);
   const [graded, setGraded] = useState<Graded[]>([]);
+  // Track consecutive correct streak per question id.
+  const [streaks, setStreaks] = useState<Record<string, number>>({});
+  const [asked, setAsked] = useState(0);
 
-  const current = useMemo(() => questions[idx], [questions, idx]);
+  const current = queue[0];
 
   // Defensive: MCQ renderer will always get an options object
   const safeOptions = useMemo(
@@ -63,12 +67,38 @@ export default function QuizRunner({ questions, onExit }: Props) {
     }
   }
 
+  // Convert a question to a harder form for re-queueing after mistakes.
+  function transformQuestion(q: QuizQuestion): QuizQuestion {
+    if (q.type === 'MCQ' || q.type === 'CLOZE') {
+      return { id: q.id, deckId: q.deckId, type: 'SHORT', prompt: q.prompt };
+    }
+    return q;
+  }
+
   function goNext() {
-    if (idx + 1 >= questions.length) {
+    if (!current) return;
+    const last = graded[graded.length - 1];
+    const rest = queue.slice(1);
+    let newQueue = rest;
+
+    if (last?.isCorrect) {
+      const newStreak = (streaks[current.id] || 0) + 1;
+      setStreaks(s => ({ ...s, [current.id]: newStreak }));
+      // Require two consecutive correct answers to master a card.
+      if (newStreak < 2) {
+        newQueue = [...rest, current];
+      }
+    } else {
+      setStreaks(s => ({ ...s, [current.id]: 0 }));
+      newQueue = [...rest, transformQuestion(current)];
+    }
+
+    setQueue(newQueue);
+    setAsked(a => a + 1);
+    if (newQueue.length === 0) {
       setPhase('done');
     } else {
-      setIdx(i => i + 1);
-      setPhase('answer'); // next question starts fresh
+      setPhase('answer');
     }
   }
 
@@ -89,7 +119,7 @@ export default function QuizRunner({ questions, onExit }: Props) {
       <div className="card space-y-3">
         <h3 className="text-lg font-semibold">Session complete</h3>
         <div className="text-slate-700">
-          Score: {correctCount} / {questions.length} ({Math.round((correctCount / questions.length) * 100)}%)
+          Score: {correctCount} / {graded.length} ({graded.length ? Math.round((correctCount / graded.length) * 100) : 0}%)
         </div>
         <button className="btn" onClick={onExit}>Back to picker</button>
       </div>
@@ -99,7 +129,7 @@ export default function QuizRunner({ questions, onExit }: Props) {
   return (
     <div className="card space-y-4">
       <div className="flex items-center justify-between">
-        <div className="font-medium">Question {idx + 1} / {questions.length}</div>
+        <div className="font-medium">Question {asked + 1} / {asked + queue.length}</div>
         <div className="text-sm text-slate-600">{current?.type}</div>
       </div>
 

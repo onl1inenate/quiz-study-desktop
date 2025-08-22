@@ -105,11 +105,12 @@ quizRouter.post('/submit', (req, res) => {
     const isCorrect =
       (userAnswer ?? '').trim().toLowerCase() === correctAnswer.trim().toLowerCase();
 
-    const newCount = isCorrect ? Number(row.correctCount || 0) + 1 : 0;
+    // Track a streak of consecutive correct answers. Any wrong attempt resets it.
+    const newStreak = isCorrect ? Number(row.correctCount || 0) + 1 : 0;
     db.prepare(`
       INSERT INTO Mastery (questionId, correctCount) VALUES (?, ?)
       ON CONFLICT(questionId) DO UPDATE SET correctCount=excluded.correctCount
-    `).run(questionId, newCount);
+    `).run(questionId, newStreak);
 
     // Build INSERT for Attempts dynamically, coercing values per column type.
     const cols = pragmaColumns('Attempts');
@@ -169,8 +170,8 @@ quizRouter.post('/submit', (req, res) => {
       isCorrect,
       correct_answer: correctAnswer,
       explanation: String(row.explanation ?? ''),
-      correctCount: newCount,
-      mastered: newCount >= 2,
+      correctCount: newStreak,
+      mastered: newStreak >= 2,
     });
   } catch (err: any) {
     console.error('/quiz/submit error:', err?.message || err);
