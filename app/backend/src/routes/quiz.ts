@@ -83,6 +83,7 @@ quizRouter.post('/session', (req, res) => {
     selected = [...selected, ...leftovers.slice(0, count - selected.length)];
   }
 
+
   selected = shuffle(selected);
 
   const out = selected.slice(0, count).map(r => ({
@@ -92,6 +93,56 @@ quizRouter.post('/session', (req, res) => {
     prompt: r.prompt,
     options: (() => { try { return JSON.parse(r.options || '{}'); } catch { return { a:'', b:'', c:'', d:'' }; } })(),
   }));
+const SessionReq = z.object({
+  deckId: z.string().min(1),
+  count: z.number().int().min(1).default(10),
+  mode: z.enum(['Mixed', 'Weak', 'Due']).default('Mixed'),
+  ratios: z.object({
+    mcq: z.number().min(0).max(1).optional(),
+    cloze: z.number().min(0).max(1).optional(),
+    short: z.number().min(0).max(1).optional(),
+  }).optional(),
+});
+
+…
+
+const { deckId, count: requested, mode, ratios } = parsed.data;
+
+…
+
+const mcq = shuffle(pool.filter(r => r.type === 'MCQ'));
+const cloze = shuffle(pool.filter(r => r.type === 'CLOZE'));
+const short = shuffle(pool.filter(r => r.type === 'SHORT'));
+const take = <T,>(arr: T[], n: number) =>
+  arr.slice(0, Math.max(0, Math.min(n, arr.length)));
+
+const ratioMCQ = ratios?.mcq ?? 0.5;
+const ratioCloze = ratios?.cloze ?? 0.25;
+const ratioShort = ratios?.short ?? 0.25;
+const ratioSum = ratioMCQ + ratioCloze + ratioShort || 1;
+let wantMCQ = Math.floor(count * (ratioMCQ / ratioSum));
+let wantCloze = Math.floor(count * (ratioCloze / ratioSum));
+let wantShort = Math.floor(count * (ratioShort / ratioSum));
+const allocated = wantMCQ + wantCloze + wantShort;
+if (allocated < count) wantShort += count - allocated;
+
+let selected: any[] = [
+  ...take(mcq, wantMCQ),
+  ...take(cloze, wantCloze),
+  ...take(short, wantShort),
+];
+
+if (selected.length < count) {
+  const chosen = new Set(selected.map(q => q.id));
+  const leftovers = shuffle(pool.filter(q => !chosen.has(q.id)));
+  selected = [
+    ...selected,
+    ...leftovers.slice(0, count - selected.length),
+  ];
+}
+
+selected = shuffle(selected);
+
 
   res.json({ questions: out });
 });
