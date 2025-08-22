@@ -63,6 +63,7 @@ export type QuizQuestion = {
   type: 'MCQ' | 'CLOZE' | 'SHORT';
   prompt: string;
   options?: { a: string; b: string; c: string; d: string };
+  answerMap?: { a: string; b: string; c: string; d: string };
 };
 
 export async function startSession(

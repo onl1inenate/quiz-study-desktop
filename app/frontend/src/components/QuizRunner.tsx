@@ -10,6 +10,7 @@ export type QuizQuestion = {
   type: 'MCQ' | 'CLOZE' | 'SHORT';
   prompt: string;
   options?: { a: string; b: string; c: string; d: string };
+  answerMap?: { a: string; b: string; c: string; d: string };
 };
 
 type Props = {
@@ -41,6 +42,14 @@ export default function QuizRunner({ questions, onExit }: Props) {
       current?.options && typeof current.options === 'object'
         ? current.options
         : { a: '', b: '', c: '', d: '' },
+    [current]
+  );
+
+  const safeMap = useMemo(
+    () =>
+      current?.answerMap && typeof current.answerMap === 'object'
+        ? current.answerMap
+        : { a: 'a', b: 'b', c: 'c', d: 'd' },
     [current]
   );
 
@@ -127,7 +136,7 @@ export default function QuizRunner({ questions, onExit }: Props) {
       {current?.type === 'MCQ' && (
         <QuestionMCQ
           key={current.id}
-          question={{ id: current.id, prompt: current.prompt, options: safeOptions }}
+          question={{ id: current.id, prompt: current.prompt, options: safeOptions, answerMap: safeMap }}
           onSubmit={onSubmitUserAnswer}
           disabled={loading || phase !== 'answer'}
         />

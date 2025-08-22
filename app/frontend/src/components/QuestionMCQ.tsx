@@ -5,13 +5,15 @@ type Props = {
     id: string;
     prompt: string;
     options: { a: string; b: string; c: string; d: string };
+    answerMap: { a: string; b: string; c: string; d: string };
   };
   onSubmit: (answer: string) => void;
   disabled?: boolean;
 };
 
 export default function QuestionMCQ({ question, onSubmit, disabled }: Props) {
-  const [selected, setSelected] = useState<string>('');
+  type Key = keyof typeof question.options;
+  const [selected, setSelected] = useState<Key | ''>('');
 
   // Reset selection on every new question
   useEffect(() => {
@@ -19,7 +21,9 @@ export default function QuestionMCQ({ question, onSubmit, disabled }: Props) {
   }, [question.id]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && selected && !disabled) onSubmit(selected);
+    if (e.key === 'Enter' && selected && !disabled) {
+      onSubmit(question.answerMap[selected as Key]);
+    }
   }
 
   const groupName = `mcq-${question.id}`; // unique group prevents carry-over
@@ -42,7 +46,11 @@ export default function QuestionMCQ({ question, onSubmit, disabled }: Props) {
         </label>
       ))}
       <div className="pt-1">
-        <button className="btn" disabled={!selected || disabled} onClick={() => onSubmit(selected)}>
+        <button
+          className="btn"
+          disabled={!selected || disabled}
+          onClick={() => onSubmit(question.answerMap[selected as Key])}
+        >
           Submit
         </button>
       </div>
