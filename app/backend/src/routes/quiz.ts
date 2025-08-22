@@ -299,7 +299,7 @@ quizRouter.post('/submit', async (req, res) => {
     const names = Object.keys(payload);
     if (names.length >= 1) {
       const placeholders = names.map(() => '?').join(',');
-      the values = names.map(n => payload[n]);
+      const values = names.map(n => payload[n]);
       const sql = `INSERT INTO Attempts (${names.join(',')}) VALUES (${placeholders})`;
       db.prepare(sql).run(...values);
     }
