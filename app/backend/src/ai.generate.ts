@@ -64,7 +64,7 @@ function buildPrompt(batchTarget: number, sourceText: string) {
 Generate high-quality study questions from the following text.
 
 Distribution across the batch:
-- 50% MCQ (4 options a/b/c/d; plausible distractors; include distractor rationales inside explanation)
+- 50% MCQ (4 options a/b/c/d; avoid trivial answers; use plausible near-miss distractors; include distractor rationales inside explanation. Distractors should reflect common misconceptions and be believable yet clearly wrong upon reflection)
 - 25% Cloze (single blank '_____')
 - 25% Short Answer
 
