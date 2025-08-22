@@ -40,20 +40,45 @@ quizRouter.post('/session', (req, res) => {
 
   const rows = db.prepare(`
       SELECT q.id, q.deckId, q.type, q.prompt, q.options, q.correct_answer, q.explanation, q.tags, q.difficulty,
-             COALESCE(m.correctCount, 0) AS correctCount
+             COALESCE(m.correctCount, 0) AS correctCount,
+             (SELECT COUNT(*) FROM Attempts a WHERE a.questionId = q.id) AS attemptCount
       FROM Questions q
       LEFT JOIN Mastery m ON m.questionId = q.id
       WHERE q.deckId = ?
   `).all(deckId) as any[];
+
+  const tagAttempts = new Map<string, number>();
+  for (const r of rows) {
+    const tags = String(r.tags || '')
+      .split(',')
+      .map((t: string) => t.trim())
+      .filter(Boolean);
+    const attempts = Number(r.attemptCount || 0);
+    for (const t of tags) {
+      tagAttempts.set(t, (tagAttempts.get(t) || 0) + attempts);
+    }
+  }
+
+  const sectionScore = (r: any) => {
+    const tags = String(r.tags || '')
+      .split(',')
+      .map((t: string) => t.trim())
+      .filter((t: string) => t.startsWith('section:'));
+    if (!tags.length) return 0;
+    return Math.min(...tags.map((t: string) => tagAttempts.get(t) || 0));
+  };
+
+  const sortByLeastQuizzed = (arr: any[]) =>
+    shuffle(arr).sort((a, b) => sectionScore(a) - sectionScore(b));
 
   let pool = rows;
   if (mode === 'Weak' || mode === 'Due') pool = rows.filter(r => Number(r.correctCount || 0) < 2);
   if (!pool.length) return res.json({ questions: [] });
 
   const count = Math.max(1, Math.min(requested, pool.length));
-  const mcq = shuffle(pool.filter(r => r.type === 'MCQ'));
-  const cloze = shuffle(pool.filter(r => r.type === 'CLOZE'));
-  const short = shuffle(pool.filter(r => r.type === 'SHORT'));
+  const mcq = sortByLeastQuizzed(pool.filter(r => r.type === 'MCQ'));
+  const cloze = sortByLeastQuizzed(pool.filter(r => r.type === 'CLOZE'));
+  const short = sortByLeastQuizzed(pool.filter(r => r.type === 'SHORT'));
   const take = <T,>(arr: T[], n: number) => arr.slice(0, Math.max(0, Math.min(n, arr.length)));
 
   let wantMCQ = Math.floor(count * 0.5);

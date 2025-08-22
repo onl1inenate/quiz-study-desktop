@@ -84,6 +84,27 @@ ${sourceText}
 `;
 }
 
+/** Split markdown-like text into sections keyed by index. */
+function splitIntoSections(text: string): Array<{ id: string; content: string }> {
+  const lines = text.split(/\r?\n/);
+  const sections: Array<{ id: string; content: string }> = [];
+  let current: { id: string; content: string } | null = null;
+  let count = 0;
+  for (const line of lines) {
+    if (/^#+\s+/.test(line)) {
+      if (current) sections.push(current);
+      count++;
+      current = { id: String(count), content: '' };
+      continue;
+    }
+    if (!current) current = { id: '1', content: '' };
+    current.content += line + '\n';
+  }
+  if (current) sections.push(current);
+  if (sections.length === 0) sections.push({ id: '1', content: text });
+  return sections;
+}
+
 async function withTimeout<T = any>(
   fn: (signal: AbortSignal) => Promise<T>,
   label: string
@@ -199,31 +220,42 @@ export async function generateAIBatch(
   text: string,
   batchTarget = ((ENV as any).GEN_BATCH_SIZE ?? 25)
 ): Promise<AIGeneratedQuestion[]> {
-  const content = await callStructuredJSON(buildPrompt(batchTarget, text));
-  if (!content) throw new Error('Empty AI response');
+  const sections = splitIntoSections(text);
+  const perSection = Math.max(1, Math.ceil(batchTarget / sections.length));
+  const out: AIGeneratedQuestion[] = [];
 
-  let parsed: any;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    const repaired = await callStructuredJSON(
+  for (const sec of sections) {
+    const content = await callStructuredJSON(buildPrompt(perSection, sec.content));
+    if (!content) continue;
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      const repaired = await callStructuredJSON(
 `You produced invalid JSON earlier. Repair it to match this schema exactly and return ONLY valid JSON (no commentary).
 
 Schema name: ${JSON_SCHEMA_NAME}
 
 JSON to repair:
 ${content}`
-    );
-    parsed = JSON.parse(repaired || '');
+      );
+      parsed = JSON.parse(repaired || '');
+    }
+
+    const questionsRaw = parsed?.questions;
+    const z = AIGeneratedQuestionArray.safeParse(questionsRaw);
+    if (!z.success) {
+      throw new Error('AI JSON failed schema validation: ' + z.error.message);
+    }
+
+    for (const q of z.data) {
+      q.tags = Array.from(new Set([...(q.tags ?? []), `section:${sec.id}`]));
+      out.push(q);
+    }
   }
 
-  const questionsRaw = parsed?.questions;
-  const z = AIGeneratedQuestionArray.safeParse(questionsRaw);
-  if (!z.success) {
-    throw new Error('AI JSON failed schema validation: ' + z.error.message);
-  }
-
-  return z.data;
+  return out.slice(0, batchTarget);
 }
 
 /** Flexible generator:
