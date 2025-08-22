@@ -65,11 +65,16 @@ export type QuizQuestion = {
   options?: { a: string; b: string; c: string; d: string };
 };
 
-export async function startSession(deckId: string, count: number, mode: 'Mixed'|'Weak'|'Due') {
+export async function startSession(
+  deckId: string,
+  count: number,
+  mode: 'Mixed'|'Weak'|'Due',
+  difficulty?: 'easy'|'medium'|'hard',
+) {
   const r = await fetch(`${BASE}/quiz/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ deckId, count, mode }),
+    body: JSON.stringify({ deckId, count, mode, difficulty }),
   });
   if (!r.ok) throw new Error(await r.text().catch(()=>'Failed to start session'));
   const j = await r.json();

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { submitAnswer } from '../lib/api';
+import { submitAnswer, startSession } from '../lib/api';
 import QuestionMCQ from './QuestionMCQ';
 import QuestionCloze from './QuestionCloze';
 import QuestionShort from './QuestionShort';
@@ -25,12 +25,15 @@ type Graded = {
 };
 
 export default function QuizRunner({ questions, onExit }: Props) {
+  const [qList, setQList] = useState(questions);
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<'answer' | 'review' | 'done'>('answer');
   const [loading, setLoading] = useState(false);
   const [graded, setGraded] = useState<Graded[]>([]);
+  const [streak, setStreak] = useState(0);
+  const [difficulty, setDifficulty] = useState<'easy'|'medium'|'hard'>('easy');
 
-  const current = useMemo(() => questions[idx], [questions, idx]);
+  const current = useMemo(() => qList[idx], [qList, idx]);
 
   // Defensive: MCQ renderer will always get an options object
   const safeOptions = useMemo(
@@ -55,6 +58,22 @@ export default function QuizRunner({ questions, onExit }: Props) {
           explanation: r.explanation,
         },
       ]);
+      const nextStreak = r.isCorrect ? streak + 1 : 0;
+      setStreak(nextStreak);
+      if (r.isCorrect && nextStreak >= 3 && difficulty !== 'hard') {
+        const nextDiff = difficulty === 'easy' ? 'medium' : 'hard';
+        try {
+          const deckId = qList[0]?.deckId;
+          if (deckId) {
+            const extra = await startSession(deckId, 5, 'Mixed', nextDiff);
+            if (extra && extra.length) {
+              setQList(qs => [...qs, ...extra]);
+              setDifficulty(nextDiff);
+            }
+          }
+        } catch {}
+        setStreak(0);
+      }
       setPhase('review');
     } catch (e: any) {
       alert(e?.message || 'Failed to submit');
@@ -64,7 +83,7 @@ export default function QuizRunner({ questions, onExit }: Props) {
   }
 
   function goNext() {
-    if (idx + 1 >= questions.length) {
+    if (idx + 1 >= qList.length) {
       setPhase('done');
     } else {
       setIdx(i => i + 1);
@@ -89,7 +108,7 @@ export default function QuizRunner({ questions, onExit }: Props) {
       <div className="card space-y-3">
         <h3 className="text-lg font-semibold">Session complete</h3>
         <div className="text-slate-700">
-          Score: {correctCount} / {questions.length} ({Math.round((correctCount / questions.length) * 100)}%)
+          Score: {correctCount} / {qList.length} ({Math.round((correctCount / qList.length) * 100)}%)
         </div>
         <button className="btn" onClick={onExit}>Back to picker</button>
       </div>
@@ -99,7 +118,7 @@ export default function QuizRunner({ questions, onExit }: Props) {
   return (
     <div className="card space-y-4">
       <div className="flex items-center justify-between">
-        <div className="font-medium">Question {idx + 1} / {questions.length}</div>
+        <div className="font-medium">Question {idx + 1} / {qList.length}</div>
         <div className="text-sm text-slate-600">{current?.type}</div>
       </div>
 
