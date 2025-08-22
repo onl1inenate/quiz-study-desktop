@@ -73,7 +73,7 @@ For EVERY question include these exact fields:
 - prompt (string)
 - options (object with keys a,b,c,d). For CLOZE/SHORT still include options but set a,b,c,d to "".
 - correct_answer (string)
-- explanation (string; why the answer is correct; for MCQ mention distractor rationales)
+- explanation (string; Explain why each option (a–d) is correct or incorrect.)
 - tags (array of topical strings)
 - difficulty (integer 1–5)
 
