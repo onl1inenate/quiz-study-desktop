@@ -48,11 +48,6 @@ const SessionReq = z.object({
   count: z.number().int().min(1).default(10),
   mode: z.enum(['Mixed', 'Weak', 'Due']).default('Mixed'),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
-const SessionReq = z.object({
-  deckId: z.string().min(1),
-  count: z.number().int().min(1).default(10),
-  mode: z.enum(['Mixed', 'Weak', 'Due']).default('Mixed'),
-  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   ratios: z.object({
     mcq: z.number().min(0).max(1).optional(),
     cloze: z.number().min(0).max(1).optional(),
@@ -86,16 +81,40 @@ function isNumericType(t: string) {
 quizRouter.post('/session', (req, res) => {
   const parsed = SessionReq.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-const { deckId, count: requested, mode, difficulty, ratios } = parsed.data;
-
+  const { deckId, count: requested, mode, difficulty, ratios } = parsed.data;
 
   const rows = db.prepare(`
       SELECT q.id, q.deckId, q.type, q.prompt, q.options, q.correct_answer, q.explanation, q.tags, q.difficulty,
-             COALESCE(m.correctCount, 0) AS correctCount
+             COALESCE(m.correctCount, 0) AS correctCount,
+             (SELECT COUNT(*) FROM Attempts a WHERE a.questionId = q.id) AS attemptCount
       FROM Questions q
       LEFT JOIN Mastery m ON m.questionId = q.id
       WHERE q.deckId = ?
   `).all(deckId) as any[];
+
+  const tagAttempts = new Map<string, number>();
+  for (const r of rows) {
+  const tags = String(r.tags || '')
+      .split(',')
+      .map((t: string) => t.trim())
+      .filter(Boolean);
+    const attempts = Number(r.attemptCount || 0);
+    for (const t of tags) {
+      tagAttempts.set(t, (tagAttempts.get(t) || 0) + attempts);
+    }
+  }
+
+  const sectionScore = (r: any) => {
+    const tags = String(r.tags || '')
+      .split(',')
+      .map((t: string) => t.trim())
+      .filter((t: string) => t.startsWith('section:'));
+    if (!tags.length) return 0;
+    return Math.min(...tags.map((t: string) => tagAttempts.get(t) || 0));
+  };
+
+  const sortByLeastQuizzed = (arr: any[]) =>
+    shuffle(arr).sort((a, b) => sectionScore(a) - sectionScore(b));
 
   let pool = rows;
   if (mode === 'Weak' || mode === 'Due') pool = rows.filter(r => Number(r.correctCount || 0) < 2);
@@ -135,10 +154,10 @@ const { deckId, count: requested, mode, difficulty, ratios } = parsed.data;
   if (!selectedPool.length) return res.json({ questions: [] });
 
   const count = Math.max(1, Math.min(requested, selectedPool.length));
-  const poolForTypes = selectedPool;
-  const mcq = shuffle(poolForTypes.filter(r => r.type === 'MCQ'));
-  const cloze = shuffle(poolForTypes.filter(r => r.type === 'CLOZE'));
-  const short = shuffle(poolForTypes.filter(r => r.type === 'SHORT'));
+  const mcq   = sortByLeastQuizzed(selectedPool.filter(r => r.type === 'MCQ'));
+  const cloze = sortByLeastQuizzed(selectedPool.filter(r => r.type === 'CLOZE'));
+  const short = sortByLeastQuizzed(selectedPool.filter(r => r.type === 'SHORT'));
+
   const take = <T,>(arr: T[], n: number) => arr.slice(0, Math.max(0, Math.min(n, arr.length)));
 
   const ratioMCQ = ratios?.mcq ?? 0.5;
@@ -159,10 +178,9 @@ const { deckId, count: requested, mode, difficulty, ratios } = parsed.data;
 
   if (selected.length < count) {
     const chosen = new Set(selected.map(q => q.id));
-    const leftovers = shuffle(poolForTypes.filter(q => !chosen.has(q.id)));
+    const leftovers = shuffle(selectedPool.filter(q => !chosen.has(q.id)));
     selected = [...selected, ...leftovers.slice(0, count - selected.length)];
   }
-
 
   selected = shuffle(selected);
 
@@ -173,56 +191,6 @@ const { deckId, count: requested, mode, difficulty, ratios } = parsed.data;
     prompt: r.prompt,
     options: (() => { try { return JSON.parse(r.options || '{}'); } catch { return { a:'', b:'', c:'', d:'' }; } })(),
   }));
-const SessionReq = z.object({
-  deckId: z.string().min(1),
-  count: z.number().int().min(1).default(10),
-  mode: z.enum(['Mixed', 'Weak', 'Due']).default('Mixed'),
-  ratios: z.object({
-    mcq: z.number().min(0).max(1).optional(),
-    cloze: z.number().min(0).max(1).optional(),
-    short: z.number().min(0).max(1).optional(),
-  }).optional(),
-});
-
-…
-
-const { deckId, count: requested, mode, ratios } = parsed.data;
-
-…
-
-const mcq = shuffle(pool.filter(r => r.type === 'MCQ'));
-const cloze = shuffle(pool.filter(r => r.type === 'CLOZE'));
-const short = shuffle(pool.filter(r => r.type === 'SHORT'));
-const take = <T,>(arr: T[], n: number) =>
-  arr.slice(0, Math.max(0, Math.min(n, arr.length)));
-
-const ratioMCQ = ratios?.mcq ?? 0.5;
-const ratioCloze = ratios?.cloze ?? 0.25;
-const ratioShort = ratios?.short ?? 0.25;
-const ratioSum = ratioMCQ + ratioCloze + ratioShort || 1;
-let wantMCQ = Math.floor(count * (ratioMCQ / ratioSum));
-let wantCloze = Math.floor(count * (ratioCloze / ratioSum));
-let wantShort = Math.floor(count * (ratioShort / ratioSum));
-const allocated = wantMCQ + wantCloze + wantShort;
-if (allocated < count) wantShort += count - allocated;
-
-let selected: any[] = [
-  ...take(mcq, wantMCQ),
-  ...take(cloze, wantCloze),
-  ...take(short, wantShort),
-];
-
-if (selected.length < count) {
-  const chosen = new Set(selected.map(q => q.id));
-  const leftovers = shuffle(pool.filter(q => !chosen.has(q.id)));
-  selected = [
-    ...selected,
-    ...leftovers.slice(0, count - selected.length),
-  ];
-}
-
-selected = shuffle(selected);
-
 
   res.json({ questions: out });
 });
@@ -303,7 +271,7 @@ quizRouter.post('/submit', async (req, res) => {
     if (has('deckId')) {
       const t = colMap.get('deckId')!.type;
       payload.deckId = isTextType(t) || t === '' ? String(row.deckId ?? '') : Number(row.deckId ?? 0);
-    }
+       }
     if (has('userAnswer')) {
       const t = colMap.get('userAnswer')!.type;
       payload.userAnswer = isTextType(t) || t === '' ? String(userAnswer ?? '') : Number(userAnswer ?? 0);
@@ -327,11 +295,11 @@ quizRouter.post('/submit', async (req, res) => {
       }
     }
 
-        // Perform insert with only present columns
+    // Perform insert with only present columns
     const names = Object.keys(payload);
     if (names.length >= 1) {
       const placeholders = names.map(() => '?').join(',');
-      const values = names.map(n => payload[n]);
+      the values = names.map(n => payload[n]);
       const sql = `INSERT INTO Attempts (${names.join(',')}) VALUES (${placeholders})`;
       db.prepare(sql).run(...values);
     }
@@ -342,9 +310,7 @@ quizRouter.post('/submit', async (req, res) => {
       explanation: String(row.explanation ?? ''),
       correctCount: newStreak,
       mastered: newStreak >= 2,
-});
-
-
+    });
   } catch (err: any) {
     console.error('/quiz/submit error:', err?.message || err);
     res.status(500).json({ error: err?.message || 'Submit failed' });
