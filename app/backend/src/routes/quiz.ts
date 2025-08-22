@@ -72,13 +72,58 @@ quizRouter.post('/session', (req, res) => {
     selected = [...selected, ...leftovers.slice(0, count - selected.length)];
   }
 
-  const out = selected.slice(0, count).map(r => ({
-    id: r.id,
-    deckId: r.deckId,
-    type: r.type as 'MCQ' | 'CLOZE' | 'SHORT',
-    prompt: r.prompt,
-    options: (() => { try { return JSON.parse(r.options || '{}'); } catch { return { a:'', b:'', c:'', d:'' }; } })(),
-  }));
+  const letters = ['a','b','c','d'] as const;
+  const correctLabels: string[] = [];
+
+  const out = selected.slice(0, count).map(r => {
+    const parsed = (() => {
+      try { return JSON.parse(r.options || '{}'); }
+      catch { return { a:'', b:'', c:'', d:'' }; }
+    })();
+
+    if (r.type === 'MCQ') {
+      const entries = letters.map(l => [l, parsed[l] || ''] as [string, string]);
+      let shuffled: Record<typeof letters[number], string> = { a:'', b:'', c:'', d:'' };
+      let map: Record<typeof letters[number], string> = { a:'', b:'', c:'', d:'' };
+      let correctLabel = 'a';
+      let attempts = 0;
+      do {
+        const shuffledEntries = shuffle(entries.slice());
+        shuffled = { a:'', b:'', c:'', d:'' } as any;
+        map = { a:'', b:'', c:'', d:'' } as any;
+        shuffledEntries.forEach(([orig, text], idx) => {
+          const newLabel = letters[idx];
+          shuffled[newLabel] = text;
+          map[newLabel] = orig;
+        });
+        correctLabel = letters.find(l => map[l] === r.correct_answer) || 'a';
+        attempts++;
+      } while (
+        attempts < 10 &&
+        correctLabels.length >= 2 &&
+        correctLabels[correctLabels.length - 1] === correctLabel &&
+        correctLabels[correctLabels.length - 2] === correctLabel
+      );
+      correctLabels.push(correctLabel);
+
+      return {
+        id: r.id,
+        deckId: r.deckId,
+        type: 'MCQ' as const,
+        prompt: r.prompt,
+        options: shuffled,
+        answerMap: map,
+      };
+    }
+
+    return {
+      id: r.id,
+      deckId: r.deckId,
+      type: r.type as 'CLOZE' | 'SHORT',
+      prompt: r.prompt,
+      options: parsed,
+    };
+  });
 
   res.json({ questions: out });
 });
