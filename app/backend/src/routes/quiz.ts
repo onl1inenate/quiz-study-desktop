@@ -8,6 +8,11 @@ const SessionReq = z.object({
   deckId: z.string().min(1),
   count: z.number().int().min(1).default(10),
   mode: z.enum(['Mixed', 'Weak', 'Due']).default('Mixed'),
+  ratios: z.object({
+    mcq: z.number().min(0).max(1).optional(),
+    cloze: z.number().min(0).max(1).optional(),
+    short: z.number().min(0).max(1).optional(),
+  }).optional(),
 });
 
 // Fisher–Yates
@@ -36,7 +41,7 @@ function isNumericType(t: string) {
 quizRouter.post('/session', (req, res) => {
   const parsed = SessionReq.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  const { deckId, count: requested, mode } = parsed.data;
+  const { deckId, count: requested, mode, ratios } = parsed.data;
 
   const rows = db.prepare(`
       SELECT q.id, q.deckId, q.type, q.prompt, q.options, q.correct_answer, q.explanation, q.tags, q.difficulty,
@@ -56,9 +61,15 @@ quizRouter.post('/session', (req, res) => {
   const short = shuffle(pool.filter(r => r.type === 'SHORT'));
   const take = <T,>(arr: T[], n: number) => arr.slice(0, Math.max(0, Math.min(n, arr.length)));
 
-  let wantMCQ = Math.floor(count * 0.5);
-  let wantCloze = Math.floor(count * 0.25);
-  let wantShort = count - wantMCQ - wantCloze;
+  const ratioMCQ = ratios?.mcq ?? 0.5;
+  const ratioCloze = ratios?.cloze ?? 0.25;
+  const ratioShort = ratios?.short ?? 0.25;
+  const ratioSum = ratioMCQ + ratioCloze + ratioShort || 1;
+  let wantMCQ = Math.floor(count * (ratioMCQ / ratioSum));
+  let wantCloze = Math.floor(count * (ratioCloze / ratioSum));
+  let wantShort = Math.floor(count * (ratioShort / ratioSum));
+  const allocated = wantMCQ + wantCloze + wantShort;
+  if (allocated < count) wantShort += count - allocated;
 
   let selected: any[] = [
     ...take(mcq, wantMCQ),
@@ -71,6 +82,8 @@ quizRouter.post('/session', (req, res) => {
     const leftovers = shuffle(pool.filter(q => !chosen.has(q.id)));
     selected = [...selected, ...leftovers.slice(0, count - selected.length)];
   }
+
+  selected = shuffle(selected);
 
   const out = selected.slice(0, count).map(r => ({
     id: r.id,
