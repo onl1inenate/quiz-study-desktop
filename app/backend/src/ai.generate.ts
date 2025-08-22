@@ -77,7 +77,11 @@ For EVERY question include these exact fields:
 - tags (array of topical strings)
 - difficulty (integer 1–5)
 
-Ground everything strictly in the source. Avoid duplicates; vary difficulty and tags. Write ${batchTarget} total.
+Ground everything strictly in the source. Avoid duplicates; vary difficulty and tags.
+- Use diverse question stems.
+- Include scenario/application prompts.
+- Mix straightforward recall with deeper analysis questions.
+Write ${batchTarget} total.
 
 SOURCE:
 ${sourceText}
