@@ -1,8 +1,47 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db.js';
+import OpenAI from 'openai';
 
 export const quizRouter = Router();
+
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+
+const SYNONYMS: Record<string, string[]> = {
+  usa: ['united states', 'united states of america', 'america'],
+  nyc: ['new york', 'new york city'],
+};
+
+function normalizeSynonyms(text: string) {
+  const t = (text || '').trim().toLowerCase();
+  for (const [canon, list] of Object.entries(SYNONYMS)) {
+    if (t === canon || list.includes(t)) return canon;
+  }
+  return t;
+}
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function similarity(a: string, b: string) {
+  const dist = levenshtein(a, b);
+  return 1 - dist / Math.max(a.length, b.length, 1);
+}
 
 const SessionReq = z.object({
   deckId: z.string().min(1),
@@ -83,7 +122,7 @@ quizRouter.post('/session', (req, res) => {
   res.json({ questions: out });
 });
 
-quizRouter.post('/submit', (req, res) => {
+quizRouter.post('/submit', async (req, res) => {
   const body = z.object({
     questionId: z.string().min(1),
     userAnswer: z.string().optional().default(''),
@@ -102,8 +141,34 @@ quizRouter.post('/submit', (req, res) => {
     if (!row) return res.status(404).json({ error: 'Question not found' });
 
     const correctAnswer = String(row.correct_answer ?? '');
-    const isCorrect =
-      (userAnswer ?? '').trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+    let isCorrect = (userAnswer ?? '').trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+
+    if (row.type === 'SHORT') {
+      const normUser = normalizeSynonyms(userAnswer ?? '');
+      const normCorrect = normalizeSynonyms(correctAnswer);
+      if (!isCorrect) {
+        const sim = similarity(normUser, normCorrect);
+        if (sim >= 0.85) isCorrect = true;
+      }
+      if (!isCorrect && openai) {
+        try {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'You are a grading assistant. Reply with JSON {"correct":boolean,"feedback":string}.' },
+              { role: 'user', content: `Question: ${row.prompt}\nCorrect Answer: ${correctAnswer}\nStudent Answer: ${userAnswer}` }
+            ],
+            response_format: { type: 'json_object' },
+          });
+          const msg = completion.choices?.[0]?.message?.content || '{}';
+          const judgement = JSON.parse(msg);
+          if (judgement.correct === true) isCorrect = true;
+          if (typeof judgement.feedback === 'string') row.feedback = judgement.feedback;
+        } catch (e) {
+          console.error('OpenAI grading error', e);
+        }
+      }
+    }
 
     const newCount = isCorrect ? Number(row.correctCount || 0) + 1 : 0;
     db.prepare(`
@@ -171,6 +236,7 @@ quizRouter.post('/submit', (req, res) => {
       explanation: String(row.explanation ?? ''),
       correctCount: newCount,
       mastered: newCount >= 2,
+      feedback: row.feedback ?? '',
     });
   } catch (err: any) {
     console.error('/quiz/submit error:', err?.message || err);
