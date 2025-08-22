@@ -3,6 +3,7 @@ import { submitAnswer } from '../lib/api';
 import QuestionMCQ from './QuestionMCQ';
 import QuestionCloze from './QuestionCloze';
 import QuestionShort from './QuestionShort';
+import QueueStats from './QueueStats';
 
 export type QuizQuestion = {
   id: string;
@@ -10,6 +11,7 @@ export type QuizQuestion = {
   type: 'MCQ' | 'CLOZE' | 'SHORT';
   prompt: string;
   options?: { a: string; b: string; c: string; d: string };
+  answerMap?: { a: string; b: string; c: string; d: string };
 };
 
 type Props = {
@@ -28,7 +30,7 @@ export default function QuizRunner({ questions, onExit }: Props) {
   // Maintain a mutable queue so questions can be re-enqueued or removed.
   const [queue, setQueue] = useState<QuizQuestion[]>(() => [...questions]);
   const [phase, setPhase] = useState<'answer' | 'review' | 'done'>('answer');
-  const [loading, setLoading] = useState(false);
+  the [loading, setLoading] = useState(false);
   const [graded, setGraded] = useState<Graded[]>([]);
   // Track consecutive correct streak per question id.
   const [streaks, setStreaks] = useState<Record<string, number>>({});
@@ -42,6 +44,14 @@ export default function QuizRunner({ questions, onExit }: Props) {
       current?.options && typeof current.options === 'object'
         ? current.options
         : { a: '', b: '', c: '', d: '' },
+    [current]
+  );
+
+  const safeMap = useMemo(
+    () =>
+      current?.answerMap && typeof current.answerMap === 'object'
+        ? current.answerMap
+        : { a: 'a', b: 'b', c: 'c', d: 'd' },
     [current]
   );
 
@@ -81,27 +91,6 @@ export default function QuizRunner({ questions, onExit }: Props) {
     const rest = queue.slice(1);
     let newQueue = rest;
 
-    if (last?.isCorrect) {
-      const newStreak = (streaks[current.id] || 0) + 1;
-      setStreaks(s => ({ ...s, [current.id]: newStreak }));
-      // Require two consecutive correct answers to master a card.
-      if (newStreak < 2) {
-        newQueue = [...rest, current];
-      }
-    } else {
-      setStreaks(s => ({ ...s, [current.id]: 0 }));
-      newQueue = [...rest, transformQuestion(current)];
-    }
-
-    setQueue(newQueue);
-    setAsked(a => a + 1);
-    if (newQueue.length === 0) {
-      setPhase('done');
-    } else {
-      setPhase('answer');
-    }
-  }
-
   const correctCount = graded.filter(g => g.isCorrect).length;
 
   if (!current && phase !== 'done') {
@@ -109,7 +98,9 @@ export default function QuizRunner({ questions, onExit }: Props) {
     return (
       <div className="card">
         <div className="text-slate-600">No questions available.</div>
-        <div className="mt-3"><button className="btn" onClick={onExit}>Back</button></div>
+        <div className="mt-3">
+          <button className="btn" onClick={onExit}>Back</button>
+        </div>
       </div>
     );
   }
@@ -120,6 +111,9 @@ export default function QuizRunner({ questions, onExit }: Props) {
         <h3 className="text-lg font-semibold">Session complete</h3>
         <div className="text-slate-700">
           Score: {correctCount} / {graded.length} ({graded.length ? Math.round((correctCount / graded.length) * 100) : 0}%)
+        </div>
+        <div className="mt-4">
+          <QueueStats />
         </div>
         <button className="btn" onClick={onExit}>Back to picker</button>
       </div>
@@ -133,12 +127,11 @@ export default function QuizRunner({ questions, onExit }: Props) {
         <div className="text-sm text-slate-600">{current?.type}</div>
       </div>
 
-      {/* Render the correct question UI.
-          Key by question id to force remount (inputs reset). */}
+      {/* Render question component here… */}
       {current?.type === 'MCQ' && (
         <QuestionMCQ
           key={current.id}
-          question={{ id: current.id, prompt: current.prompt, options: safeOptions }}
+          question={{ id: current.id, prompt: current.prompt, options: safeOptions, answerMap: safeMap }}
           onSubmit={onSubmitUserAnswer}
           disabled={loading || phase !== 'answer'}
         />
@@ -175,6 +168,14 @@ export default function QuizRunner({ questions, onExit }: Props) {
           </div>
         </div>
       )}
+
+      <div className="mt-4">
+        <QueueStats />
+      </div>
+
+      <button className="btn mt-4" onClick={goNext} disabled={loading || phase !== 'answer'}>
+        Next Question
+      </button>
     </div>
   );
 }

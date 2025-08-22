@@ -64,7 +64,7 @@ function buildPrompt(batchTarget: number, sourceText: string) {
 Generate high-quality study questions from the following text.
 
 Distribution across the batch:
-- 50% MCQ (4 options a/b/c/d; plausible distractors; include distractor rationales inside explanation)
+- 50% MCQ (4 options a/b/c/d; avoid trivial answers; use plausible near-miss distractors; include distractor rationales inside explanation. Distractors should reflect common misconceptions and be believable yet clearly wrong upon reflection)
 - 25% Cloze (single blank '_____')
 - 25% Short Answer
 
@@ -73,11 +73,15 @@ For EVERY question include these exact fields:
 - prompt (string)
 - options (object with keys a,b,c,d). For CLOZE/SHORT still include options but set a,b,c,d to "".
 - correct_answer (string)
-- explanation (string; why the answer is correct; for MCQ mention distractor rationales)
+- explanation (string; Explain why each option (a–d) is correct or incorrect.)
 - tags (array of topical strings)
 - difficulty (integer 1–5)
 
-Ground everything strictly in the source. Avoid duplicates; vary difficulty and tags. Write ${batchTarget} total.
+Ground everything strictly in the source. Avoid duplicates; vary difficulty and tags.
+- Use diverse question stems.
+- Include scenario/application prompts.
+- Mix straightforward recall with deeper analysis questions.
+Write ${batchTarget} total.
 
 SOURCE:
 ${sourceText}
