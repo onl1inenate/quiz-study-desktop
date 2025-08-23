@@ -69,6 +69,7 @@ decksRouter.post('/', async (req, res) => {
         options: q.options ?? undefined,
         correct_answer: q.correct_answer ?? '',
         explanation: q.explanation ?? '',
+        learning_content: q.learning_content ?? '',
         tags: q.tags ?? [],
         difficulty: q.difficulty ?? 3,
       });
@@ -170,6 +171,7 @@ decksRouter.put('/:id', async (req, res) => {
         options: q.options ?? undefined,
         correct_answer: q.correct_answer ?? '',
         explanation: q.explanation ?? '',
+        learning_content: q.learning_content ?? '',
         tags: q.tags ?? [],
         difficulty: q.difficulty ?? 3,
       });

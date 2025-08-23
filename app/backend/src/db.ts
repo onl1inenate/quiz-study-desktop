@@ -60,10 +60,16 @@ export function migrate() {
       options TEXT,
       correct_answer TEXT,
       explanation TEXT,
+      learning_content TEXT,
       tags TEXT,
       difficulty INTEGER DEFAULT 3
     );
   `);
+
+  // Add missing columns to old Questions
+  if (!hasColumn('Questions', 'learning_content')) {
+    db.exec(`ALTER TABLE Questions ADD COLUMN learning_content TEXT`);
+  }
 
   // Mastery
   db.exec(`
@@ -98,6 +104,7 @@ export function insertQuestion(q: {
   options?: any;
   correct_answer?: string;
   explanation?: string;
+  learning_content?: string;
   tags?: string[];
   difficulty?: number;
 }) {
@@ -105,8 +112,8 @@ export function insertQuestion(q: {
   const options = q.options ? JSON.stringify(q.options) : null;
   const tags = q.tags ? q.tags.join(',') : null;
   db.prepare(`
-    INSERT INTO Questions (id, deckId, type, prompt, options, correct_answer, explanation, tags, difficulty)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO Questions (id, deckId, type, prompt, options, correct_answer, explanation, learning_content, tags, difficulty)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     q.deckId,
@@ -115,6 +122,7 @@ export function insertQuestion(q: {
     options,
     q.correct_answer ?? null,
     q.explanation ?? null,
+    q.learning_content ?? null,
     tags,
     q.difficulty ?? 3
   );

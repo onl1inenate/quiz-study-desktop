@@ -18,6 +18,7 @@ export const QuestionSchema = z.object({
   options: MCQOptions.optional(),
   correct_answer: z.string().min(1),
   explanation: z.string().min(1),
+  learning_content: z.string().min(1),
   tags: z.array(z.string()).default([]),
   difficulty: z.number().int().min(1).max(5)
 });
@@ -30,6 +31,7 @@ export const AIGeneratedQuestionSchema = z.object({
   options: MCQOptions.optional().nullable(),   // <-- allow null or missing
   correct_answer: z.string().min(1),
   explanation: z.string().min(1),
+  learning_content: z.string().min(1),
   tags: z.array(z.string()).default([]),
   difficulty: z.number().int().min(1).max(5)
 });

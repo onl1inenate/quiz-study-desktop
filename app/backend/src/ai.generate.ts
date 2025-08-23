@@ -31,6 +31,7 @@ const jsonSchemaForAI = {
             'options',
             'correct_answer',
             'explanation',
+            'learning_content',
             'tags',
             'difficulty'
           ],
@@ -50,6 +51,7 @@ const jsonSchemaForAI = {
             },
             correct_answer: { type: 'string' },
             explanation: { type: 'string' },
+            learning_content: { type: 'string' },
             tags: { type: 'array', items: { type: 'string' } },
             difficulty: { type: 'integer', minimum: 1, maximum: 5 }
           }
@@ -74,6 +76,7 @@ For EVERY question include these exact fields:
 - options (object with keys a,b,c,d). For CLOZE/SHORT still include options but set a,b,c,d to "".
 - correct_answer (string)
 - explanation (string; Explain why each option (a–d) is correct or incorrect.)
+- learning_content (string; 2–4 sentence study note including concepts or facts needed to answer the question. State neutrally and avoid revealing the answer.)
 - tags (array of topical strings)
 - difficulty (integer 1–5)
 
