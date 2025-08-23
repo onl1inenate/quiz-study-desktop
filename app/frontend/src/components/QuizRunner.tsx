@@ -10,12 +10,14 @@ export type QuizQuestion = {
   deckId: string;
   type: 'MCQ' | 'CLOZE' | 'SHORT';
   prompt: string;
+  learning_content?: string;
   options?: { a: string; b: string; c: string; d: string };
   answerMap?: { a: string; b: string; c: string; d: string };
 };
 
 type Props = {
   questions: QuizQuestion[];
+  learningMode?: boolean;
   onExit: () => void;
 };
 
@@ -26,7 +28,7 @@ type Graded = {
   explanation: string;
 };
 
-export default function QuizRunner({ questions, onExit }: Props) {
+export default function QuizRunner({ questions, learningMode, onExit }: Props) {
   // Maintain a mutable queue so questions can be re-enqueued or removed.
   const [queue, setQueue] = useState<QuizQuestion[]>(() => [...questions]);
   const [phase, setPhase] = useState<'answer' | 'review' | 'done'>('answer');
@@ -80,7 +82,7 @@ export default function QuizRunner({ questions, onExit }: Props) {
   // Convert a question to a harder form for re-queueing after mistakes.
   function transformQuestion(q: QuizQuestion): QuizQuestion {
     if (q.type === 'MCQ' || q.type === 'CLOZE') {
-      return { id: q.id, deckId: q.deckId, type: 'SHORT', prompt: q.prompt };
+      return { id: q.id, deckId: q.deckId, type: 'SHORT', prompt: q.prompt, learning_content: q.learning_content };
     }
     return q;
   }
@@ -136,6 +138,12 @@ export default function QuizRunner({ questions, onExit }: Props) {
         <div className="font-medium">Question {asked + 1} / {asked + queue.length}</div>
         <div className="text-sm text-slate-600">{current?.type}</div>
       </div>
+
+      {learningMode && current?.learning_content && (
+        <div className="p-3 rounded bg-sky-50 whitespace-pre-wrap">
+          {current.learning_content}
+        </div>
+      )}
 
       {/* Render question component here… */}
       {current?.type === 'MCQ' && (

@@ -62,6 +62,7 @@ export type QuizQuestion = {
   deckId: string;
   type: 'MCQ' | 'CLOZE' | 'SHORT';
   prompt: string;
+  learning_content?: string;
   options?: { a: string; b: string; c: string; d: string };
   answerMap?: { a: string; b: string; c: string; d: string };
 };

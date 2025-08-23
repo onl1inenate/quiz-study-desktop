@@ -84,7 +84,7 @@ quizRouter.post('/session', (req, res) => {
   const { deckId, count: requested, mode, difficulty, ratios } = parsed.data;
 
   const rows = db.prepare(`
-      SELECT q.id, q.deckId, q.type, q.prompt, q.options, q.correct_answer, q.explanation, q.tags, q.difficulty,
+      SELECT q.id, q.deckId, q.type, q.prompt, q.options, q.correct_answer, q.explanation, q.learning_content, q.tags, q.difficulty,
              COALESCE(m.correctCount, 0) AS correctCount,
              (SELECT COUNT(*) FROM Attempts a WHERE a.questionId = q.id) AS attemptCount
       FROM Questions q
@@ -189,6 +189,7 @@ quizRouter.post('/session', (req, res) => {
     deckId: r.deckId,
     type: r.type as 'MCQ' | 'CLOZE' | 'SHORT',
     prompt: r.prompt,
+    learning_content: r.learning_content,
     options: (() => { try { return JSON.parse(r.options || '{}'); } catch { return { a:'', b:'', c:'', d:'' }; } })(),
   }));
 

@@ -10,6 +10,7 @@ export default function Study() {
   const [deckId, setDeckId] = useState<string>('');
   const [mode, setMode] = useState<Mode>('Mixed');
   const [count, setCount] = useState<number>(50);
+  const [learningMode, setLearningMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<any[] | null>(null);
   const [sp] = useSearchParams();
@@ -90,6 +91,14 @@ export default function Study() {
               <option>Weak</option>
               <option>Due</option>
             </select>
+            <label className="mt-2 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={learningMode}
+                onChange={e => setLearningMode(e.target.checked)}
+              />
+              <span>Learning Mode</span>
+            </label>
           </div>
 
           <div>
@@ -124,6 +133,7 @@ export default function Study() {
       {questions && questions.length > 0 && (
         <QuizRunner
           questions={questions}
+          learningMode={learningMode}
           onExit={() => setQuestions(null)}
         />
       )}
