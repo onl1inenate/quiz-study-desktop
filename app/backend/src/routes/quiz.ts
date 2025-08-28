@@ -180,15 +180,23 @@ quizRouter.post('/submit', async (req, res) => {
 
     const correctAnswer = String(row.correct_answer ?? '');
     let isCorrect = (userAnswer ?? '').trim().toLowerCase() === correctAnswer.trim().toLowerCase();
-    let explanation = String(row.explanation ?? '');
+    let explanation = '';
+    let correctDefinition = '';
+    let userDefinition = '';
 
     if ((row.type === 'CLOZE' || row.type === 'SHORT') && openai) {
       try {
         const completion = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [
-            { role: 'system', content: 'You are a grading assistant. Reply with JSON {"correct":boolean,"explanation":string}.' },
-            { role: 'user', content: `Question: ${row.prompt}\nCorrect Answer: ${correctAnswer}\nStudent Answer: ${userAnswer}` }
+            {
+              role: 'system',
+              content: 'You are a grading assistant. Reply with JSON {"correct":boolean,"correct_definition":string,"user_definition":string,"explanation":string}.',
+            },
+            {
+              role: 'user',
+              content: `Question: ${row.prompt}\nCorrect Answer: ${correctAnswer}\nStudent Answer: ${userAnswer}\nDefine both answers and explain why the student is correct or incorrect.`,
+            }
           ],
           response_format: { type: 'json_object' },
         });
@@ -196,9 +204,25 @@ quizRouter.post('/submit', async (req, res) => {
         const judgement = JSON.parse(msg);
         if (typeof judgement.correct === 'boolean') isCorrect = judgement.correct;
         if (typeof judgement.explanation === 'string') explanation = judgement.explanation;
+        if (typeof judgement.correct_definition === 'string') correctDefinition = judgement.correct_definition;
+        if (typeof judgement.user_definition === 'string') userDefinition = judgement.user_definition;
       } catch (e) {
         console.error('OpenAI grading error', e);
       }
+    }
+
+    if (!correctDefinition) correctDefinition = String(row.explanation || '');
+    if (!userDefinition) userDefinition = '';
+    if (!explanation) {
+      const userDefPart = userDefinition
+        ? `"${userAnswer}" means ${userDefinition}.`
+        : `No definition available for "${userAnswer}".`;
+      const correctDefPart = correctDefinition
+        ? `"${correctAnswer}" means ${correctDefinition}.`
+        : `No definition available for "${correctAnswer}".`;
+      explanation = isCorrect
+        ? `Your answer is correct. ${userDefPart} ${correctDefPart}`
+        : `Your answer is incorrect. ${userDefPart} ${correctDefPart}`;
     }
 
     // Track a streak of consecutive correct answers. Any wrong attempt resets it.
@@ -265,6 +289,9 @@ quizRouter.post('/submit', async (req, res) => {
     res.json({
       isCorrect,
       correct_answer: correctAnswer,
+      user_answer: userAnswer,
+      correct_definition: correctDefinition,
+      user_definition: userDefinition,
       explanation,
       correctCount: newStreak,
       mastered: newStreak >= 2,

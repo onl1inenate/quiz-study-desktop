@@ -93,6 +93,9 @@ export async function submitAnswer(questionId: string, userAnswer: string) {
   return r.json() as Promise<{
     isCorrect: boolean;
     correct_answer: string;
+    user_answer: string;
+    correct_definition: string;
+    user_definition: string;
     explanation: string;
     correctCount: number;
     mastered: boolean;
