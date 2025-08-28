@@ -25,6 +25,9 @@ type Graded = {
   questionId: string;
   isCorrect: boolean;
   correct_answer: string;
+  user_answer: string;
+  correct_definition: string;
+  user_definition: string;
   explanation: string;
 };
 
@@ -68,6 +71,9 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
           questionId: current.id,
           isCorrect: r.isCorrect,
           correct_answer: r.correct_answer,
+          user_answer: r.user_answer,
+          correct_definition: r.correct_definition,
+          user_definition: r.user_definition,
           explanation: r.explanation,
         },
       ]);
@@ -177,9 +183,18 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
           <div className="font-semibold mb-1">
             {graded[graded.length - 1].isCorrect ? 'Correct ✅' : 'Incorrect ❌'}
           </div>
-          <div className="text-sm">
-            <div><span className="font-medium">Answer:</span> {graded[graded.length - 1].correct_answer}</div>
-            <div className="mt-1 whitespace-pre-wrap">{graded[graded.length - 1].explanation}</div>
+          <div className="text-sm space-y-1">
+            <div>
+              <span className="font-medium">Your Answer:</span> {graded[graded.length - 1].user_answer}
+              {' '}
+              <span className="text-slate-600">– {graded[graded.length - 1].user_definition || 'No definition available.'}</span>
+            </div>
+            <div>
+              <span className="font-medium">Correct Answer:</span> {graded[graded.length - 1].correct_answer}
+              {' '}
+              <span className="text-slate-600">– {graded[graded.length - 1].correct_definition || 'No definition available.'}</span>
+            </div>
+            <div className="whitespace-pre-wrap">{graded[graded.length - 1].explanation}</div>
           </div>
           <div className="mt-3">
             <button className="btn" onClick={goNext}>Next</button>

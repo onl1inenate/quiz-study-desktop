@@ -14,7 +14,7 @@ export default function QuestionShort({ question, onSubmit, disabled }: Props) {
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'enter' && value.trim() && !disabled) {
-      onSubmit(value.trim());
+      onSubmit(value);
     }
   }
 
@@ -29,7 +29,7 @@ export default function QuestionShort({ question, onSubmit, disabled }: Props) {
         placeholder="Type your answer (⌘/Ctrl + Enter to submit)"
         disabled={disabled}
       />
-      <button className="btn" disabled={!value.trim() || disabled} onClick={() => onSubmit(value.trim())}>
+      <button className="btn" disabled={!value.trim() || disabled} onClick={() => onSubmit(value)}>
         Submit
       </button>
     </div>

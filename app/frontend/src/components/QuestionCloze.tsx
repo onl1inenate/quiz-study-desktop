@@ -13,7 +13,7 @@ export default function QuestionCloze({ question, onSubmit, disabled }: Props) {
   useEffect(() => { setValue(''); }, [question.id]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && value.trim() && !disabled) onSubmit(value.trim());
+    if (e.key === 'Enter' && value.trim() && !disabled) onSubmit(value);
   }
 
   return (
@@ -26,7 +26,7 @@ export default function QuestionCloze({ question, onSubmit, disabled }: Props) {
         placeholder="Type the missing word/phrase"
         disabled={disabled}
       />
-      <button className="btn" disabled={!value.trim() || disabled} onClick={() => onSubmit(value.trim())}>
+      <button className="btn" disabled={!value.trim() || disabled} onClick={() => onSubmit(value)}>
         Submit
       </button>
     </div>
