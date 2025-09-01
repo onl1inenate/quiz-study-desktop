@@ -184,15 +184,15 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
             {graded[graded.length - 1].isCorrect ? 'Correct ✅' : 'Incorrect ❌'}
           </div>
           <div className="text-sm space-y-1">
+            {/*
             <div>
               <span className="font-medium">Your Answer:</span> {graded[graded.length - 1].user_answer}
               {' '}
               <span className="text-slate-600">– {graded[graded.length - 1].user_definition || 'No definition available.'}</span>
             </div>
+            */}
             <div>
               <span className="font-medium">Correct Answer:</span> {graded[graded.length - 1].correct_answer}
-              {' '}
-              <span className="text-slate-600">– {graded[graded.length - 1].correct_definition || 'No definition available.'}</span>
             </div>
             <div className="whitespace-pre-wrap">{graded[graded.length - 1].explanation}</div>
           </div>
