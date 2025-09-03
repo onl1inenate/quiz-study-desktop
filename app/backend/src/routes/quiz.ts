@@ -182,7 +182,6 @@ quizRouter.post('/submit', async (req, res) => {
     let isCorrect = (userAnswer ?? '').trim().toLowerCase() === correctAnswer.trim().toLowerCase();
     let explanation = '';
     let correctDefinition = '';
-    let userDefinition = '';
 
     if ((row.type === 'CLOZE' || row.type === 'SHORT') && openai) {
       try {
@@ -191,7 +190,8 @@ quizRouter.post('/submit', async (req, res) => {
           messages: [
             {
               role: 'system',
-              content: 'You are a grading assistant. Reply with JSON {"correct":boolean,"correct_definition":string,"user_definition":string,"explanation":string}.',
+              content:
+                'You are a grading assistant. Reply with JSON {"correct":boolean,"correct_definition":string,"explanation":string}.',
             },
             {
               role: 'user',
@@ -204,25 +204,18 @@ quizRouter.post('/submit', async (req, res) => {
         const judgement = JSON.parse(msg);
         if (typeof judgement.correct === 'boolean') isCorrect = judgement.correct;
         if (typeof judgement.explanation === 'string') explanation = judgement.explanation;
-        if (typeof judgement.correct_definition === 'string') correctDefinition = judgement.correct_definition;
-        if (typeof judgement.user_definition === 'string') userDefinition = judgement.user_definition;
+        if (typeof judgement.correct_definition === 'string')
+          correctDefinition = judgement.correct_definition;
       } catch (e) {
         console.error('OpenAI grading error', e);
       }
     }
 
     if (!correctDefinition) correctDefinition = String(row.explanation || '');
-    if (!userDefinition) userDefinition = '';
     if (!explanation) {
-      const userDefPart = userDefinition
-        ? `"${userAnswer}" means ${userDefinition}.`
-        : `No definition available for "${userAnswer}".`;
-      const correctDefPart = correctDefinition
-        ? `"${correctAnswer}" means ${correctDefinition}.`
-        : `No definition available for "${correctAnswer}".`;
-      explanation = isCorrect
-        ? `Your answer is correct. ${userDefPart} ${correctDefPart}`
-        : `Your answer is incorrect. ${userDefPart} ${correctDefPart}`;
+      explanation = `The correct answer is "${correctAnswer}" because ${
+        correctDefinition || row.explanation || '...'
+      }.`;
     }
 
     // Track a streak of consecutive correct answers. Any wrong attempt resets it.
@@ -290,8 +283,6 @@ quizRouter.post('/submit', async (req, res) => {
       isCorrect,
       correct_answer: correctAnswer,
       user_answer: userAnswer,
-      correct_definition: correctDefinition,
-      user_definition: userDefinition,
       explanation,
       correctCount: newStreak,
       mastered: newStreak >= 2,
