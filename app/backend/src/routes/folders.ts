@@ -19,6 +19,13 @@ foldersRouter.get('/', (_req, res) => {
       const totalRow = db
         .prepare(`SELECT COUNT(*) as n FROM Questions WHERE deckId = ?`)
         .get(d.id) as { n: number };
+      const completedRow = db
+        .prepare(`
+          SELECT COUNT(*) as n FROM Questions q
+          JOIN Mastery m ON m.questionId = q.id
+          WHERE q.deckId = ? AND m.correctCount = 1
+        `)
+        .get(d.id) as { n: number };
       const masteredRow = db
         .prepare(`
           SELECT COUNT(*) as n FROM Questions q
@@ -27,13 +34,15 @@ foldersRouter.get('/', (_req, res) => {
         `)
         .get(d.id) as { n: number };
       const total = Number(totalRow?.n ?? 0);
+      const completed = Number(completedRow?.n ?? 0);
       const mastered = Number(masteredRow?.n ?? 0);
       return {
         id: d.id,
         name: d.name,
         totalQuestions: total,
+        completed,
         mastered,
-        unmastered: Math.max(0, total - mastered),
+        unmastered: Math.max(0, total - mastered - completed),
       };
     });
 

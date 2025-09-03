@@ -294,6 +294,7 @@ quizRouter.post('/submit', async (req, res) => {
       user_definition: userDefinition,
       explanation,
       correctCount: newStreak,
+      completed: newStreak >= 1,
       mastered: newStreak >= 2,
     });
   } catch (err: any) {

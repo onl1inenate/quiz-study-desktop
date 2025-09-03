@@ -17,6 +17,13 @@ decksRouter.get('/', (_req, res) => {
     const totalRow = db
       .prepare(`SELECT COUNT(*) as n FROM Questions WHERE deckId = ?`)
       .get(r.id) as { n: number };
+    const completedRow = db
+      .prepare(
+        `SELECT COUNT(*) as n FROM Questions q
+         JOIN Mastery m ON m.questionId = q.id
+         WHERE q.deckId = ? AND m.correctCount = 1`,
+      )
+      .get(r.id) as { n: number };
     const masteredRow = db
       .prepare(
         `SELECT COUNT(*) as n FROM Questions q
@@ -26,6 +33,7 @@ decksRouter.get('/', (_req, res) => {
       .get(r.id) as { n: number };
 
     const total = Number(totalRow?.n ?? 0);
+    const completed = Number(completedRow?.n ?? 0);
     const mastered = Number(masteredRow?.n ?? 0);
 
     return {
@@ -33,7 +41,8 @@ decksRouter.get('/', (_req, res) => {
       name: r.name,
       totalQuestions: total,
       mastered,
-      unmastered: Math.max(0, total - mastered),
+      completed,
+      unmastered: Math.max(0, total - mastered - completed),
     };
   });
 
@@ -102,6 +111,13 @@ decksRouter.get('/:id', (req, res) => {
   const totalRow = db
     .prepare(`SELECT COUNT(*) as n FROM Questions WHERE deckId = ?`)
     .get(id) as { n: number };
+  const completedRow = db
+    .prepare(
+      `SELECT COUNT(*) as n FROM Questions q
+       JOIN Mastery m ON m.questionId = q.id
+       WHERE q.deckId = ? AND m.correctCount = 1`,
+    )
+    .get(id) as { n: number };
   const masteredRow = db
     .prepare(
       `SELECT COUNT(*) as n FROM Questions q
@@ -116,8 +132,9 @@ decksRouter.get('/:id', (req, res) => {
     text: deck.source_text ?? '',
     folderId: deck.folderId ?? null,
     totalQuestions: Number(totalRow?.n ?? 0),
+    completed: Number(completedRow?.n ?? 0),
     mastered: Number(masteredRow?.n ?? 0),
-    unmastered: Math.max(0, Number(totalRow?.n ?? 0) - Number(masteredRow?.n ?? 0)),
+    unmastered: Math.max(0, Number(totalRow?.n ?? 0) - Number(masteredRow?.n ?? 0) - Number(completedRow?.n ?? 0)),
   });
 });
 
