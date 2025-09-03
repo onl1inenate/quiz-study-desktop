@@ -4,6 +4,7 @@ export type DeckMeta = {
   id: string;
   name: string;
   totalQuestions: number;
+  completed: number;
   mastered: number;
   unmastered: number;
 };
@@ -98,6 +99,7 @@ export async function submitAnswer(questionId: string, userAnswer: string) {
     user_definition: string;
     explanation: string;
     correctCount: number;
+    completed: boolean;
     mastered: boolean;
   }>;
 }
@@ -110,6 +112,7 @@ export type DeckDetail = {
   text: string; // notes
   folderId: string | null;
   totalQuestions: number;
+  completed: number;
   mastered: number;
   unmastered: number;
 };

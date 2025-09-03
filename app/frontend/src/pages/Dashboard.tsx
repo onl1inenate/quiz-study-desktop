@@ -146,7 +146,7 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between">
                     <div className="font-medium">{d.name}</div>
                     <div className="text-sm text-slate-500">
-                      {d.mastered}/{d.totalQuestions} mastered
+                      {d.completed}/{d.totalQuestions} completed · {d.mastered} mastered
                     </div>
                   </div>
 

@@ -14,8 +14,8 @@ export default function EditDeck() {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
 
-  const [stats, setStats] = useState<{ total: number; mastered: number; unmastered: number }>({
-    total: 0, mastered: 0, unmastered: 0,
+  const [stats, setStats] = useState<{ total: number; completed: number; mastered: number; unmastered: number }>({
+    total: 0, completed: 0, mastered: 0, unmastered: 0,
   });
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export default function EditDeck() {
         if (!mounted) return;
         setName(d.name);
         setText(d.text || '');
-        setStats({ total: d.totalQuestions, mastered: d.mastered, unmastered: d.unmastered });
+        setStats({ total: d.totalQuestions, completed: d.completed, mastered: d.mastered, unmastered: d.unmastered });
       } catch (e: any) {
         alert(e?.message || 'Failed to load deck');
         setError(e?.message || 'Failed to load deck');
@@ -109,6 +109,7 @@ export default function EditDeck() {
 
         <div className="text-sm text-slate-600">
           <span className="badge mr-2">Total: {stats.total}</span>
+          <span className="badge mr-2">Completed: {stats.completed}</span>
           <span className="badge mr-2">Mastered: {stats.mastered}</span>
           <span className="badge">Unmastered: {stats.unmastered}</span>
         </div>
