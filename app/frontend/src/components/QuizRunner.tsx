@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { submitAnswer } from '../lib/api';
-import { recordCorrect } from '../lib/progress';
+import { recordProgress } from '../lib/progress';
 import type { QuizQuestion } from '../lib/api';
 import QuestionMCQ from './QuestionMCQ';
 import QuestionCloze from './QuestionCloze';
@@ -34,8 +34,6 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
   const [phase, setPhase] = useState<'answer' | 'review' | 'done'>('answer');
   const [loading, setLoading] = useState(false);
   const [graded, setGraded] = useState<Graded[]>([]);
-  // Track consecutive correct streak per question id.
-  const [, setStreaks] = useState<Record<string, number>>({});
   const [asked, setAsked] = useState(0);
 
   const current = queue[0];
@@ -74,14 +72,7 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
       setGraded(g => [...g, entry]);
 
       if (deckId) {
-        setStreaks(prev => {
-          const streak = entry.isCorrect ? (prev[current.id] || 0) + 1 : 0;
-          const updated = { ...prev, [current.id]: streak };
-          if (entry.isCorrect) {
-            recordCorrect(deckId, current.id, streak);
-          }
-          return updated;
-        });
+        recordProgress(deckId, current.id, r.completed, r.mastered);
       }
       setPhase('review');
     } catch (e: any) {

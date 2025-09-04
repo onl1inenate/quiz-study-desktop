@@ -22,11 +22,35 @@ export function saveProgress(deckId: string, progress: DeckProgress): void {
   } catch {}
 }
 
-export function recordCorrect(deckId: string, questionId: string, streak: number) {
+export function recordProgress(
+  deckId: string,
+  questionId: string,
+  completed: boolean,
+  mastered: boolean,
+) {
   const progress = loadProgress(deckId);
-  if (!progress.completed.includes(questionId)) progress.completed.push(questionId);
-  if (streak >= 3 && !progress.mastered.includes(questionId)) {
-    progress.mastered.push(questionId);
+
+  // mastered always implies completed
+  if (mastered) completed = true;
+
+  // Update completed list
+  if (completed) {
+    if (!progress.completed.includes(questionId)) progress.completed.push(questionId);
+  } else {
+    progress.completed = progress.completed.filter(id => id !== questionId);
   }
+
+  // Update mastered list
+  if (mastered) {
+    if (!progress.mastered.includes(questionId)) progress.mastered.push(questionId);
+  } else {
+    progress.mastered = progress.mastered.filter(id => id !== questionId);
+  }
+
   saveProgress(deckId, progress);
+}
+
+// Backwards compatibility
+export function recordCorrect(deckId: string, questionId: string, streak: number) {
+  recordProgress(deckId, questionId, streak >= 1, streak >= 3);
 }
