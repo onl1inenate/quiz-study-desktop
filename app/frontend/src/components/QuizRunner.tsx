@@ -141,6 +141,17 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
     }
   }, [phase]);
 
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Enter' && phase === 'review') {
+        e.preventDefault();
+        goNext();
+      }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [phase, goNext]);
+
   if (!current && phase !== 'done') {
     // Nothing to show (empty session)
     return (
@@ -227,7 +238,7 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
             <div className="whitespace-pre-wrap">{graded[graded.length - 1].explanation}</div>
           </div>
           <div className="mt-3">
-            <button className="btn" onClick={goNext}>Next</button>
+            <button className="btn" onClick={goNext}>Next (Enter)</button>
           </div>
         </div>
       )}
