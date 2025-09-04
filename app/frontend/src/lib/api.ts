@@ -141,3 +141,9 @@ export async function deleteDeck(deckId: string) {
   if (!r.ok) throw new Error(await r.text().catch(()=>'Failed to delete deck'));
   return r.json();
 }
+
+export async function resetDeckProgress(deckId: string) {
+  const r = await fetch(`${BASE}/decks/${deckId}/reset`, { method: 'POST' });
+  if (!r.ok) throw new Error(await r.text().catch(()=>'Failed to reset progress'));
+  return r.json();
+}
