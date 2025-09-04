@@ -212,6 +212,22 @@ decksRouter.put('/:id', async (req, res) => {
   }
 });
 
+/** Reset progress for a deck */
+decksRouter.post('/:id/reset', (req, res) => {
+  const id = req.params.id;
+  const deck = db.prepare(`SELECT id FROM Decks WHERE id = ?`).get(id) as { id: string } | undefined;
+  if (!deck) return res.status(404).json({ error: 'Deck not found' });
+
+  db.prepare(
+    `DELETE FROM Mastery WHERE questionId IN (SELECT id FROM Questions WHERE deckId = ?)`,
+  ).run(id);
+  db.prepare(
+    `DELETE FROM Attempts WHERE questionId IN (SELECT id FROM Questions WHERE deckId = ?)`,
+  ).run(id);
+
+  res.json({ ok: true });
+});
+
 /** Delete a deck */
 decksRouter.delete('/:id', (req, res) => {
   const id = req.params.id;

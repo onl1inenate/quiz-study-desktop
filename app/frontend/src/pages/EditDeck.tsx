@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { deleteDeck, getDeckDetail, updateDeck } from '../lib/api';
+import { deleteDeck, getDeckDetail, updateDeck, resetDeckProgress } from '../lib/api';
 
 export default function EditDeck() {
   const { id = '' } = useParams();
@@ -9,6 +9,7 @@ export default function EditDeck() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [regenLoading, setRegenLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState('');
@@ -78,6 +79,26 @@ export default function EditDeck() {
     }
   }
 
+  async function onResetProgress() {
+    if (!confirm('Reset progress for this deck? This clears mastery and attempt history.')) return;
+    setResetLoading(true);
+    try {
+      await resetDeckProgress(id);
+      const d = await getDeckDetail(id);
+      setStats({
+        total: d.totalQuestions,
+        completed: d.completed,
+        mastered: d.mastered,
+        unmastered: d.unmastered,
+      });
+      alert('Progress reset');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to reset progress');
+    } finally {
+      setResetLoading(false);
+    }
+  }
+
   if (loading) {
     return <div className="p-6">Loading…</div>;
   }
@@ -120,11 +141,18 @@ export default function EditDeck() {
           </button>
           <button
             className="btn bg-blue-600 hover:bg-blue-700"
-            disabled={saving || regenLoading}
+            disabled={saving || regenLoading || resetLoading}
             onClick={onSaveAndRegen}
             title="Save current notes and rebuild the question bank from them"
           >
             {regenLoading ? 'Regenerating…' : 'Save & Regenerate'}
+          </button>
+          <button
+            className="btn bg-yellow-600 hover:bg-yellow-700"
+            disabled={saving || regenLoading || resetLoading}
+            onClick={onResetProgress}
+          >
+            {resetLoading ? 'Resetting…' : 'Reset Progress'}
           </button>
         </div>
       </div>
