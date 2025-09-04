@@ -176,16 +176,50 @@ quizRouter.post('/session', (req, res) => {
   selected.sort((a, b) => Number(a.correctCount || 0) - Number(b.correctCount || 0));
   selected = shuffle(selected);
 
-  const out = selected.slice(0, count).map(r => ({
-    id: r.id,
-    deckId: r.deckId,
-    type: r.type as 'MCQ' | 'CLOZE' | 'SHORT',
-    prompt: r.prompt,
-    learning_content: r.learning_content,
-    options: (() => { try { return JSON.parse(r.options || '{}'); } catch { return { a:'', b:'', c:'', d:'' }; } })(),
-    correctCount: Number(r.correctCount || 0),
-    mastered: Number(r.correctCount || 0) >= 2,
-  }));
+  const letters = ['a','b','c','d'] as const;
+  const out = selected.slice(0, count).map(r => {
+    const parsed = (() => {
+      try {
+        return JSON.parse(r.options || '{}');
+      } catch {
+        return { a: '', b: '', c: '', d: '' };
+      }
+    })();
+
+    if (r.type === 'MCQ') {
+      const pairs = letters.map(l => ({ key: l, val: parsed[l] }));
+      shuffle(pairs);
+      const opts: Record<string, string> = {};
+      const map: Record<string, string> = {};
+      pairs.forEach((p, idx) => {
+        const letter = letters[idx];
+        opts[letter] = p.val;
+        map[letter] = p.key;
+      });
+      return {
+        id: r.id,
+        deckId: r.deckId,
+        type: 'MCQ' as const,
+        prompt: r.prompt,
+        learning_content: r.learning_content,
+        options: opts,
+        answerMap: map,
+        correctCount: Number(r.correctCount || 0),
+        mastered: Number(r.correctCount || 0) >= 2,
+      };
+    }
+
+    return {
+      id: r.id,
+      deckId: r.deckId,
+      type: r.type as 'CLOZE' | 'SHORT',
+      prompt: r.prompt,
+      learning_content: r.learning_content,
+      options: parsed,
+      correctCount: Number(r.correctCount || 0),
+      mastered: Number(r.correctCount || 0) >= 2,
+    };
+  });
 
   res.json({ questions: out });
 });
