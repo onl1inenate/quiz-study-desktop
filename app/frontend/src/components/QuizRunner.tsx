@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { submitAnswer } from '../lib/api';
+import { recordCorrect } from '../lib/progress';
 import type { QuizQuestion } from '../lib/api';
 import QuestionMCQ from './QuestionMCQ';
 import QuestionCloze from './QuestionCloze';
@@ -25,9 +26,8 @@ type Graded = {
 };
 
 export default function QuizRunner({ questions, learningMode, onExit }: Props) {
-  // Determine deck and localStorage key for progress persistence
+  // Determine deck for progress persistence
   const deckId = questions[0]?.deckId;
-  const storageKey = deckId ? `session-${deckId}` : null;
 
   // Maintain a mutable queue so questions can be re-enqueued or removed.
   const [queue, setQueue] = useState<QuizQuestion[]>(() => [...questions]);
@@ -35,7 +35,7 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
   const [loading, setLoading] = useState(false);
   const [graded, setGraded] = useState<Graded[]>([]);
   // Track consecutive correct streak per question id.
-  const [streaks, setStreaks] = useState<Record<string, number>>({});
+  const [, setStreaks] = useState<Record<string, number>>({});
   const [asked, setAsked] = useState(0);
 
   const current = queue[0];
@@ -71,16 +71,18 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
         user_definition: r.user_definition,
         explanation: r.explanation,
       };
-      setGraded(g => {
-        const updated = [...g, entry];
-        if (storageKey) {
-          const answered = updated.map(x => x.questionId);
-          try {
-            localStorage.setItem(storageKey, JSON.stringify({ answered }));
-          } catch {}
-        }
-        return updated;
-      });
+      setGraded(g => [...g, entry]);
+
+      if (deckId) {
+        setStreaks(prev => {
+          const streak = entry.isCorrect ? (prev[current.id] || 0) + 1 : 0;
+          const updated = { ...prev, [current.id]: streak };
+          if (entry.isCorrect) {
+            recordCorrect(deckId, current.id, streak);
+          }
+          return updated;
+        });
+      }
       setPhase('review');
     } catch (e: any) {
       alert(e?.message || 'Failed to submit');
@@ -123,24 +125,9 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
 
   const correctCount = graded.filter(g => g.isCorrect).length;
 
-  function clearProgress() {
-    if (storageKey) {
-      try {
-        localStorage.removeItem(storageKey);
-      } catch {}
-    }
-  }
-
   function handleExit() {
-    clearProgress();
     onExit();
   }
-
-  useEffect(() => {
-    if (phase === 'done') {
-      clearProgress();
-    }
-  }, [phase]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
