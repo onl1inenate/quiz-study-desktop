@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 type Props = {
   question: {
@@ -14,10 +14,12 @@ type Props = {
 export default function QuestionMCQ({ question, onSubmit, disabled }: Props) {
   type Key = keyof typeof question.options;
   const [selected, setSelected] = useState<Key | ''>('');
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Reset selection on every new question
   useEffect(() => {
     setSelected('');
+    containerRef.current?.focus();
   }, [question.id]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -44,7 +46,12 @@ export default function QuestionMCQ({ question, onSubmit, disabled }: Props) {
   const groupName = `mcq-${question.id}`; // unique group prevents carry-over
 
   return (
-    <div className="space-y-3" onKeyDown={handleKeyDown} tabIndex={0}>
+    <div
+      className="space-y-3"
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      ref={containerRef}
+    >
       <div className="whitespace-pre-wrap">{question.prompt}</div>
       {(['a','b','c','d'] as const).map((k) => (
         <label key={k} className="flex items-center gap-2 p-2 rounded border cursor-pointer">
