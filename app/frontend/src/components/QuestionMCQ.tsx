@@ -21,7 +21,22 @@ export default function QuestionMCQ({ question, onSubmit, disabled }: Props) {
   }, [question.id]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && selected && !disabled) {
+    if (disabled) return;
+
+    const keyMap: Record<string, Key> = {
+      '1': 'a',
+      '2': 'b',
+      '3': 'c',
+      '4': 'd',
+    };
+
+    const key = keyMap[e.key];
+    if (key) {
+      setSelected(key);
+      return;
+    }
+
+    if (e.key === 'Enter' && selected) {
       onSubmit(question.answerMap[selected as Key]);
     }
   }
@@ -29,7 +44,7 @@ export default function QuestionMCQ({ question, onSubmit, disabled }: Props) {
   const groupName = `mcq-${question.id}`; // unique group prevents carry-over
 
   return (
-    <div className="space-y-3" onKeyDown={handleKeyDown}>
+    <div className="space-y-3" onKeyDown={handleKeyDown} tabIndex={0}>
       <div className="whitespace-pre-wrap">{question.prompt}</div>
       {(['a','b','c','d'] as const).map((k) => (
         <label key={k} className="flex items-center gap-2 p-2 rounded border cursor-pointer">
