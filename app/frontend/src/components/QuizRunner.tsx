@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { submitAnswer } from '../lib/api';
 import QuestionMCQ from './QuestionMCQ';
 import QuestionCloze from './QuestionCloze';
@@ -32,6 +32,10 @@ type Graded = {
 };
 
 export default function QuizRunner({ questions, learningMode, onExit }: Props) {
+  // Determine deck and localStorage key for progress persistence
+  const deckId = questions[0]?.deckId;
+  const storageKey = deckId ? `session-${deckId}` : null;
+
   // Maintain a mutable queue so questions can be re-enqueued or removed.
   const [queue, setQueue] = useState<QuizQuestion[]>(() => [...questions]);
   const [phase, setPhase] = useState<'answer' | 'review' | 'done'>('answer');
@@ -65,18 +69,25 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
     setLoading(true);
     try {
       const r = await submitAnswer(current.id, answer);
-      setGraded(g => [
-        ...g,
-        {
-          questionId: current.id,
-          isCorrect: r.isCorrect,
-          correct_answer: r.correct_answer,
-          user_answer: r.user_answer,
-          correct_definition: r.correct_definition,
-          user_definition: r.user_definition,
-          explanation: r.explanation,
-        },
-      ]);
+      const entry = {
+        questionId: current.id,
+        isCorrect: r.isCorrect,
+        correct_answer: r.correct_answer,
+        user_answer: r.user_answer,
+        correct_definition: r.correct_definition,
+        user_definition: r.user_definition,
+        explanation: r.explanation,
+      };
+      setGraded(g => {
+        const updated = [...g, entry];
+        if (storageKey) {
+          const answered = updated.map(x => x.questionId);
+          try {
+            localStorage.setItem(storageKey, JSON.stringify({ answered }));
+          } catch {}
+        }
+        return updated;
+      });
       setPhase('review');
     } catch (e: any) {
       alert(e?.message || 'Failed to submit');
@@ -111,13 +122,32 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
 
   const correctCount = graded.filter(g => g.isCorrect).length;
 
+  function clearProgress() {
+    if (storageKey) {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {}
+    }
+  }
+
+  function handleExit() {
+    clearProgress();
+    onExit();
+  }
+
+  useEffect(() => {
+    if (phase === 'done') {
+      clearProgress();
+    }
+  }, [phase]);
+
   if (!current && phase !== 'done') {
     // Nothing to show (empty session)
     return (
       <div className="card">
         <div className="text-slate-600">No questions available.</div>
         <div className="mt-3">
-          <button className="btn" onClick={onExit}>Back</button>
+          <button className="btn" onClick={handleExit}>Back</button>
         </div>
       </div>
     );
@@ -133,7 +163,7 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
         <div className="mt-4">
           <QueueStats />
         </div>
-        <button className="btn" onClick={onExit}>Back to picker</button>
+        <button className="btn" onClick={handleExit}>Back to picker</button>
       </div>
     );
   }

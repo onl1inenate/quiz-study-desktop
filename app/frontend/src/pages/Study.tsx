@@ -5,6 +5,15 @@ import QuizRunner from '../components/QuizRunner';
 
 type Mode = 'Mixed' | 'Weak' | 'Due';
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export default function Study() {
   const [decks, setDecks] = useState<DeckMeta[]>([]);
   const [deckId, setDeckId] = useState<string>('');
@@ -51,8 +60,22 @@ export default function Study() {
     setLoading(true);
     setQuestions(null);
     try {
-      const qs = await startSession(deckId, count, mode);
+      let qs = await startSession(deckId, count, mode);
       if (!qs?.length) alert('No questions available for this selection.');
+
+      const storageKey = `session-${deckId}`;
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const answered: string[] = Array.isArray(parsed?.answered) ? parsed.answered : [];
+          const answeredSet = new Set(answered);
+          const unanswered = qs.filter((q: any) => !answeredSet.has(q.id));
+          const answeredQs = qs.filter((q: any) => answeredSet.has(q.id));
+          qs = [...shuffle(unanswered), ...shuffle(answeredQs)];
+        }
+      } catch {}
+
       setQuestions(qs ?? []);
     } catch (e: any) {
       alert(e?.message || 'Failed to start session');
