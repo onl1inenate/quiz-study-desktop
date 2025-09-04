@@ -23,8 +23,6 @@ function shuffle<T>(arr: T[]): T[] {
 
 export default function Study() {
   const [decks, setDecks] = useState<DeckMeta[]>([]);
-  the user wants to know where to put this code? yes, replaced lines 1–end.
-
   const [deckId, setDeckId] = useState<string>('');
   const [mode, setMode] = useState<Mode>('Mixed');
   const [count, setCount] = useState<number>(50);
