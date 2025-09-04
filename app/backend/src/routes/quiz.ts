@@ -218,14 +218,18 @@ quizRouter.post('/submit', async (req, res) => {
     let correctDefinition = '';
 
     // Attempt to extract per-option explanations from the stored explanation
-    // string. Each option is expected to start with a letter label (a-d).
+    // string. Options may be separated by newlines or spaces, so we split on
+    // the option label (a-d) followed by punctuation.
     const optionExplanations: Record<string, string> = (() => {
       const map: Record<string, string> = {};
       const text = String(row.explanation || '');
-      const regex = /(?:^|\n)\s*([a-d])[\).:-]?\s*(.*?)(?=\n\s*[a-d][\).:-]?\s*|$)/gis;
-      let m: RegExpExecArray | null;
-      while ((m = regex.exec(text)) !== null) {
-        map[m[1].toLowerCase()] = m[2].trim();
+      const parts = text.split(/\b([a-d])[\).:-]\s*/gi);
+      for (let i = 1; i < parts.length; i += 2) {
+        const letter = parts[i]?.toLowerCase();
+        let exp = parts[i + 1] || '';
+        // Remove any trailing summary like "The correct answer is ..."
+        exp = exp.split(/The\s+correct\s+answer\s+is/i)[0].trim();
+        if (letter) map[letter] = exp;
       }
       return map;
     })();
