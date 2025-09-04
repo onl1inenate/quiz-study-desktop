@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { listFolders, startSession, DeckMeta, FolderMeta } from '../lib/api';
+import { listFolders, startSession, DeckMeta, FolderMeta, QuizQuestion } from '../lib/api';
 import QuizRunner from '../components/QuizRunner';
 
 type Mode = 'Mixed' | 'Weak' | 'Due';
@@ -21,7 +21,7 @@ export default function Study() {
   const [count, setCount] = useState<number>(50);
   const [learningMode, setLearningMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [questions, setQuestions] = useState<any[] | null>(null);
+  const [questions, setQuestions] = useState<QuizQuestion[] | null>(null);
   const [sp] = useSearchParams();
 
   // Load decks
@@ -64,17 +64,25 @@ export default function Study() {
       if (!qs?.length) alert('No questions available for this selection.');
 
       const storageKey = `session-${deckId}`;
+      let answeredSet = new Set<string>();
       try {
         const saved = localStorage.getItem(storageKey);
         if (saved) {
           const parsed = JSON.parse(saved);
           const answered: string[] = Array.isArray(parsed?.answered) ? parsed.answered : [];
-          const answeredSet = new Set(answered);
-          const unanswered = qs.filter((q: any) => !answeredSet.has(q.id));
-          const answeredQs = qs.filter((q: any) => answeredSet.has(q.id));
-          qs = [...shuffle(unanswered), ...shuffle(answeredQs)];
+          answeredSet = new Set(answered);
         }
       } catch {}
+
+      const reorder = (arr: QuizQuestion[]) => {
+        const unanswered = arr.filter(q => !answeredSet.has(q.id));
+        const answeredQs = arr.filter(q => answeredSet.has(q.id));
+        return [...shuffle(unanswered), ...shuffle(answeredQs)];
+      };
+
+      const unmastered = qs.filter(q => !q.mastered);
+      const mastered = qs.filter(q => q.mastered);
+      qs = [...reorder(unmastered), ...reorder(mastered)];
 
       setQuestions(qs ?? []);
     } catch (e: any) {

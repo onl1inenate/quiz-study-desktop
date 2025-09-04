@@ -1,19 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { submitAnswer } from '../lib/api';
+import type { QuizQuestion } from '../lib/api';
 import QuestionMCQ from './QuestionMCQ';
 import QuestionCloze from './QuestionCloze';
 import QuestionShort from './QuestionShort';
 import QueueStats from './QueueStats';
 
-export type QuizQuestion = {
-  id: string;
-  deckId: string;
-  type: 'MCQ' | 'CLOZE' | 'SHORT';
-  prompt: string;
-  learning_content?: string;
-  options?: { a: string; b: string; c: string; d: string };
-  answerMap?: { a: string; b: string; c: string; d: string };
-};
+export type { QuizQuestion } from '../lib/api';
 
 type Props = {
   questions: QuizQuestion[];
@@ -99,7 +92,15 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
   // Convert a question to a harder form for re-queueing after mistakes.
   function transformQuestion(q: QuizQuestion): QuizQuestion {
     if (q.type === 'MCQ' || q.type === 'CLOZE') {
-      return { id: q.id, deckId: q.deckId, type: 'SHORT', prompt: q.prompt, learning_content: q.learning_content };
+      return {
+        id: q.id,
+        deckId: q.deckId,
+        type: 'SHORT',
+        prompt: q.prompt,
+        learning_content: q.learning_content,
+        correctCount: q.correctCount,
+        mastered: q.mastered,
+      };
     }
     return q;
   }
