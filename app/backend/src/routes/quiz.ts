@@ -173,6 +173,7 @@ quizRouter.post('/session', (req, res) => {
     selected = [...selected, ...leftovers.slice(0, count - selected.length)];
   }
 
+  selected.sort((a, b) => Number(a.correctCount || 0) - Number(b.correctCount || 0));
   selected = shuffle(selected);
 
   const out = selected.slice(0, count).map(r => ({
@@ -182,6 +183,8 @@ quizRouter.post('/session', (req, res) => {
     prompt: r.prompt,
     learning_content: r.learning_content,
     options: (() => { try { return JSON.parse(r.options || '{}'); } catch { return { a:'', b:'', c:'', d:'' }; } })(),
+    correctCount: Number(r.correctCount || 0),
+    mastered: Number(r.correctCount || 0) >= 2,
   }));
 
   res.json({ questions: out });

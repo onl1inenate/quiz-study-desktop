@@ -66,6 +66,8 @@ export type QuizQuestion = {
   learning_content?: string;
   options?: { a: string; b: string; c: string; d: string };
   answerMap?: { a: string; b: string; c: string; d: string };
+  correctCount: number;
+  mastered: boolean;
 };
 
 export async function startSession(
