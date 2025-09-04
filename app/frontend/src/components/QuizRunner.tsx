@@ -167,6 +167,12 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
     );
   }
 
+  const lastGraded = graded[graded.length - 1];
+  const mappedCorrect = lastGraded
+    ? Object.entries(safeMap).find(([, v]) => v === lastGraded.correct_answer)?.[0] ||
+      lastGraded.correct_answer
+    : '';
+
   return (
     <div className="card space-y-4">
       <div className="flex items-center justify-between">
@@ -210,20 +216,20 @@ export default function QuizRunner({ questions, learningMode, onExit }: Props) {
       {phase === 'review' && graded.length > 0 && (
         <div className="p-3 rounded border bg-slate-50">
           <div className="font-semibold mb-1">
-            {graded[graded.length - 1].isCorrect ? 'Correct ✅' : 'Incorrect ❌'}
+            {lastGraded.isCorrect ? 'Correct ✅' : 'Incorrect ❌'}
           </div>
           <div className="text-sm space-y-1">
             {/*
             <div>
-              <span className="font-medium">Your Answer:</span> {graded[graded.length - 1].user_answer}
+              <span className="font-medium">Your Answer:</span> {lastGraded.user_answer}
               {' '}
-              <span className="text-slate-600">– {graded[graded.length - 1].user_definition || 'No definition available.'}</span>
+              <span className="text-slate-600">– {lastGraded.user_definition || 'No definition available.'}</span>
             </div>
             */}
             <div>
-              <span className="font-medium">Correct Answer:</span> {graded[graded.length - 1].correct_answer}
+              <span className="font-medium">Correct Answer:</span> {mappedCorrect}
             </div>
-            <div className="whitespace-pre-wrap">{graded[graded.length - 1].explanation}</div>
+            <div className="whitespace-pre-wrap">{lastGraded.explanation}</div>
           </div>
           <div className="mt-3">
             <button className="btn" onClick={goNext}>Next (Enter)</button>
