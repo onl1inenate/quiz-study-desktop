@@ -13,7 +13,16 @@ export default function QuestionShort({ question, onSubmit, disabled }: Props) {
   useEffect(() => { setValue(''); }, [question.id]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'enter' && value.trim() && !disabled) {
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.metaKey &&
+      value.trim() &&
+      !disabled
+    ) {
+      e.preventDefault();
       onSubmit(value);
     }
   }
@@ -26,7 +35,7 @@ export default function QuestionShort({ question, onSubmit, disabled }: Props) {
         style={{ minHeight: 120 }}
         value={value}
         onChange={e => setValue(e.target.value)}
-        placeholder="Type your answer (⌘/Ctrl + Enter to submit)"
+        placeholder="Type your answer (Enter to submit, Shift+Enter for newline)"
         disabled={disabled}
       />
       <button className="btn" disabled={!value.trim() || disabled} onClick={() => onSubmit(value)}>
