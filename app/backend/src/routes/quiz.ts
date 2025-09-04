@@ -211,9 +211,26 @@ quizRouter.post('/submit', async (req, res) => {
     const correctAnswer = String(row.correct_answer ?? '');
     const ua = String(userAnswer ?? '');
     let isCorrect = ua.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
-    const closeMatch = isCloseMatch(ua, correctAnswer);
+    // Only allow fuzzy matching for non-MCQ questions. Single-letter answers
+    // (e.g. "a" vs "b") would otherwise be considered a close match.
+    const closeMatch = row.type !== 'MCQ' && isCloseMatch(ua, correctAnswer);
     let explanation = '';
     let correctDefinition = '';
+
+    // Attempt to extract per-option explanations from the stored explanation
+    // string. Each option is expected to start with a letter label (a-d).
+    const optionExplanations: Record<string, string> = (() => {
+      const map: Record<string, string> = {};
+      const text = String(row.explanation || '');
+      const regex = /(?:^|\n)\s*([a-d])[\).:-]?\s*(.*?)(?=\n\s*[a-d][\).:-]?\s*|$)/gis;
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(text)) !== null) {
+        map[m[1].toLowerCase()] = m[2].trim();
+      }
+      return map;
+    })();
+    const userExp = optionExplanations[ua.trim().toLowerCase()];
+    const correctExp = optionExplanations[correctAnswer.trim().toLowerCase()];
 
     if ((row.type === 'CLOZE' || row.type === 'SHORT') && openai) {
       try {
@@ -246,11 +263,24 @@ quizRouter.post('/submit', async (req, res) => {
       isCorrect = true;
     }
 
-    if (!correctDefinition) correctDefinition = String(row.explanation || '');
+    if (!correctDefinition) correctDefinition = correctExp || String(row.explanation || '');
     if (!explanation) {
-      explanation = `The correct answer is "${correctAnswer}" because ${
-        correctDefinition || row.explanation || '...'
-      }.`;
+      if (isCorrect) {
+        explanation = correctExp || correctDefinition || `"${correctAnswer}" is correct.`;
+      } else {
+        const parts: string[] = [];
+        parts.push(
+          userExp
+            ? `Your answer "${ua}" is incorrect: ${userExp}.`
+            : `Your answer "${ua}" is incorrect.`,
+        );
+        parts.push(
+          correctExp || correctDefinition
+            ? `The correct answer is "${correctAnswer}": ${correctExp || correctDefinition}.`
+            : `The correct answer is "${correctAnswer}".`,
+        );
+        explanation = parts.join(' ');
+      }
     }
 
     // Track a streak of consecutive correct answers. Any wrong attempt resets it.
