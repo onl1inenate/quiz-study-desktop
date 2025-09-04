@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { listFolders, startSession, DeckMeta, FolderMeta } from '../lib/api';
+import {
+  listFolders,
+  startSession,
+  DeckMeta,
+  FolderMeta,
+  QuizQuestion,
+} from '../lib/api';
 import QuizRunner from '../components/QuizRunner';
 import { loadProgress } from '../lib/progress';
 
@@ -17,12 +23,14 @@ function shuffle<T>(arr: T[]): T[] {
 
 export default function Study() {
   const [decks, setDecks] = useState<DeckMeta[]>([]);
+  the user wants to know where to put this code? yes, replaced lines 1–end.
+
   const [deckId, setDeckId] = useState<string>('');
   const [mode, setMode] = useState<Mode>('Mixed');
   const [count, setCount] = useState<number>(50);
   const [learningMode, setLearningMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [questions, setQuestions] = useState<any[] | null>(null);
+  const [questions, setQuestions] = useState<QuizQuestion[] | null>(null);
   const [sp] = useSearchParams();
 
   // Load decks
@@ -45,7 +53,7 @@ export default function Study() {
   }, []);
 
   const selectedDeck = useMemo(
-    () => decks.find(d => d.id === deckId),
+    () => decks.find((d) => d.id === deckId),
     [decks, deckId]
   );
 
@@ -53,7 +61,7 @@ export default function Study() {
 
   // Clamp count when deck changes
   useEffect(() => {
-    setCount(c => Math.max(1, Math.min(c, maxCount)));
+    setCount((c) => Math.max(1, Math.min(c, maxCount)));
   }, [maxCount]);
 
   async function onStart() {
@@ -70,8 +78,8 @@ export default function Study() {
           ...(progress.completed ?? []),
           ...(progress.mastered ?? []),
         ]);
-        const pending = qs.filter((q: any) => !done.has(q.id));
-        const finished = qs.filter((q: any) => done.has(q.id));
+        const pending = qs.filter((q) => !done.has(q.id));
+        const finished = qs.filter((q) => done.has(q.id));
         qs = [...shuffle(pending), ...shuffle(finished)];
       } catch {}
 
@@ -92,9 +100,9 @@ export default function Study() {
             <select
               className="select"
               value={deckId}
-              onChange={e => setDeckId(e.target.value)}
+              onChange={(e) => setDeckId(e.target.value)}
             >
-              {decks.map(d => (
+              {decks.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
                 </option>
@@ -107,7 +115,7 @@ export default function Study() {
             <select
               className="select"
               value={mode}
-              onChange={e => setMode(e.target.value as Mode)}
+              onChange={(e) => setMode(e.target.value as Mode)}
             >
               <option>Mixed</option>
               <option>Weak</option>
@@ -117,7 +125,7 @@ export default function Study() {
               <input
                 type="checkbox"
                 checked={learningMode}
-                onChange={e => setLearningMode(e.target.checked)}
+                onChange={(e) => setLearningMode(e.target.checked)}
               />
               <span>Learning Mode</span>
             </label>
@@ -131,9 +139,18 @@ export default function Study() {
               min={1}
               max={maxCount}
               value={count}
-              onChange={e => setCount(Math.max(1, Math.min(Number(e.target.value) || 1, maxCount)))}
+              onChange={(e) =>
+                setCount(
+                  Math.max(
+                    1,
+                    Math.min(Number(e.target.value) || 1, maxCount)
+                  )
+                )
+              }
             />
-            <div className="text-xs text-slate-500 mt-1">Max {maxCount} for this deck</div>
+            <div className="text-xs text-slate-500 mt-1">
+              Max {maxCount} for this deck
+            </div>
           </div>
 
           <div className="flex gap-2">
