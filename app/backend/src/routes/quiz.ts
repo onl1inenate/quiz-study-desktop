@@ -42,6 +42,33 @@ function isNumericType(t: string) {
   return T.includes('INT') || T.includes('REAL') || T.includes('NUM') || T.includes('DOUBLE') || T.includes('DECIMAL');
 }
 
+function levenshtein(a: string, b: string) {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function isCloseMatch(userAnswer: string, correctAnswer: string) {
+  const ua = userAnswer.trim().toLowerCase();
+  const ca = correctAnswer.trim().toLowerCase();
+  const distance = levenshtein(ua, ca);
+  const maxLen = Math.max(ua.length, ca.length);
+  return distance <= 1 || distance <= Math.floor(maxLen * 0.1);
+}
+
 quizRouter.post('/session', (req, res) => {
   const parsed = SessionReq.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
@@ -179,7 +206,9 @@ quizRouter.post('/submit', async (req, res) => {
     if (!row) return res.status(404).json({ error: 'Question not found' });
 
     const correctAnswer = String(row.correct_answer ?? '');
-    let isCorrect = (userAnswer ?? '').trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+    const ua = String(userAnswer ?? '');
+    let isCorrect = ua.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+    const closeMatch = isCloseMatch(ua, correctAnswer);
     let explanation = '';
     let correctDefinition = '';
 
@@ -191,7 +220,7 @@ quizRouter.post('/submit', async (req, res) => {
             {
               role: 'system',
               content:
-                'You are a grading assistant. Reply with JSON {"correct":boolean,"correct_definition":string,"explanation":string}.',
+                'You are a grading assistant. Be lenient with small typos and reply with JSON {"correct":boolean,"correct_definition":string,"explanation":string}.',
             },
             {
               role: 'user',
@@ -208,7 +237,10 @@ quizRouter.post('/submit', async (req, res) => {
           correctDefinition = judgement.correct_definition;
       } catch (e) {
         console.error('OpenAI grading error', e);
+        if (closeMatch) isCorrect = true;
       }
+    } else if (closeMatch) {
+      isCorrect = true;
     }
 
     if (!correctDefinition) correctDefinition = String(row.explanation || '');
