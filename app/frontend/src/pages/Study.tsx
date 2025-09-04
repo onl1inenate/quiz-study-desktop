@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { listFolders, startSession, DeckMeta, FolderMeta } from '../lib/api';
 import QuizRunner from '../components/QuizRunner';
+import { loadProgress } from '../lib/progress';
 
 type Mode = 'Mixed' | 'Weak' | 'Due';
 
@@ -63,17 +64,15 @@ export default function Study() {
       let qs = await startSession(deckId, count, mode);
       if (!qs?.length) alert('No questions available for this selection.');
 
-      const storageKey = `session-${deckId}`;
       try {
-        const saved = localStorage.getItem(storageKey);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const answered: string[] = Array.isArray(parsed?.answered) ? parsed.answered : [];
-          const answeredSet = new Set(answered);
-          const unanswered = qs.filter((q: any) => !answeredSet.has(q.id));
-          const answeredQs = qs.filter((q: any) => answeredSet.has(q.id));
-          qs = [...shuffle(unanswered), ...shuffle(answeredQs)];
-        }
+        const progress = loadProgress(deckId);
+        const done = new Set([
+          ...(progress.completed ?? []),
+          ...(progress.mastered ?? []),
+        ]);
+        const pending = qs.filter((q: any) => !done.has(q.id));
+        const finished = qs.filter((q: any) => done.has(q.id));
+        qs = [...shuffle(pending), ...shuffle(finished)];
       } catch {}
 
       setQuestions(qs ?? []);
