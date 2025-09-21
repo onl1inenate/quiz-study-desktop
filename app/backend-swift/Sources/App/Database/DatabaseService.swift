@@ -48,7 +48,11 @@ enum DatabaseService {
 }
 
 extension Request {
-    func insertQuestion(_ question: InsertQuestion) -> EventLoopFuture<UUID> {
+    func insertQuestionFuture(_ question: InsertQuestion) -> EventLoopFuture<UUID> {
         DatabaseService.insertQuestion(question, on: db)
+    }
+
+    func insertQuestion(_ question: InsertQuestion) async throws -> UUID {
+        try await DatabaseService.insertQuestion(question, on: db).get()
     }
 }
