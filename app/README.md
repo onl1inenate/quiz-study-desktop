@@ -9,6 +9,11 @@ cp ../.env.example ../.env   # set OPENAI_API_KEY in app/backend/.env
 npm i
 npm run dev   # http://localhost:3001
 
+### Swift Backend Prototype
+cd app/backend-swift
+swift build
+swift run   # launches the Vapor server
+
 ### Frontend
 cd app/frontend
 npm i
