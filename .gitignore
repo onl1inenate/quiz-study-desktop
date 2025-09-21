@@ -15,6 +15,7 @@ desktop/release/
 resources/
 *.dmg
 *.app
+app/backend-swift/.build/
 
 # Local data & env
 .env
