@@ -23,5 +23,8 @@ public func configure(_ app: Application) throws {
     app.middleware.use(CORSMiddleware(configuration: corsConfiguration))
     app.middleware.use(ErrorMiddleware.default(environment: app.environment))
 
+    DatabaseMigrator.configure(app)
+    try app.autoMigrate().wait()
+
     try routes(app)
 }
